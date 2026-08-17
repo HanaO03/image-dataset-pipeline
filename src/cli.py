@@ -8,6 +8,7 @@ unreachable from tests and from any future orchestrator.
     python -m src.cli run                     # full pipeline
     python -m src.cli run --classes cat,dog   # override classes
     python -m src.cli run --limit 10          # small smoke run
+    python -m src.cli run --refetch           # ignore the store, re-download
     python -m src.cli status                  # last runs at a glance
     python -m src.cli init-db                 # apply the schema and exit
 
@@ -40,8 +41,7 @@ EXIT_OK, EXIT_FAILED, EXIT_PARTIAL = 0, 1, 2
 def _bootstrap():
     settings = get_settings()
     configure_logging(settings.log_level, settings.log_json)
-    for directory in (settings.paths.raw_dir, settings.paths.images_dir,
-                      settings.paths.output_dir):
+    for directory in (settings.paths.images_dir, settings.paths.output_dir):
         directory.mkdir(parents=True, exist_ok=True)
     conn = connect(settings.database)
     apply_schema(conn)

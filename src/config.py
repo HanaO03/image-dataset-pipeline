@@ -318,11 +318,11 @@ class PathSettings(BaseSettings):
 
     data_dir: Path = Path("/data")
 
-    @computed_field
-    @property
-    def raw_dir(self) -> Path:
-        """Raw upstream payloads, per run — the replay source."""
-        return self.data_dir / "raw"
+    #: There is deliberately no `raw_dir`. Raw upstream payloads are the replay
+    #: source, and they live in `raw_records.payload` (JSONB) rather than as
+    #: files: they are small, they are queryable there, and one storage location
+    #: for them beats two that can disagree. An empty `/data/raw` sitting next
+    #: to the images would imply a landing zone that does not exist.
 
     @computed_field
     @property
@@ -364,7 +364,6 @@ class Settings(BaseSettings):
     #: is what keeps us welcome on each of them. Raising workers without also
     #: raising the delay does not go faster — it just earns a 429.
     download_workers: int = 8
-    dry_run: bool = False
     #: Ignore the stored URL index and re-download everything. The index assumes
     #: a URL still serves the bytes it served last time, which is true of both
     #: sources here but not of the web in general; this is the escape hatch.

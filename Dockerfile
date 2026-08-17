@@ -61,7 +61,7 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Created here so they exist with the right owner even when no volume is
 # mounted over them.
-RUN mkdir -p /data/raw /data/images /data/output && chown -R appuser:appuser /data
+RUN mkdir -p /data/images /data/output && chown -R appuser:appuser /data
 
 VOLUME ["/data"]
 

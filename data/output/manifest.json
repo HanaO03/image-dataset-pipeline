@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0",
   "dataset_fingerprint": "9876e8c83245194b",
-  "run_id": "7a893a9a-e77c-4cb1-83e3-798aae08ea93",
-  "created_at": "2026-08-17T11:00:56.885834+00:00",
+  "run_id": "41a672e3-4b13-4834-9242-d96f99797d1a",
+  "created_at": "2026-08-17T11:03:02.438417+00:00",
   "n_images": 180,
   "classes": [
     "bird",
@@ -40,7 +40,6 @@
     "log_level": "INFO",
     "log_json": true,
     "download_workers": 8,
-    "dry_run": false,
     "refetch": false,
     "database": {
       "host": "postgres",
@@ -124,7 +123,6 @@
     },
     "paths": {
       "data_dir": "/data",
-      "raw_dir": "/data/raw",
       "images_dir": "/data/images",
       "output_dir": "/data/output"
     }

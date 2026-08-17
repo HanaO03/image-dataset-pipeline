@@ -9,7 +9,6 @@ venv/
 htmlcov/
 
 # Working stores — reproducible by running the pipeline, not worth versioning.
-data/raw/
 data/images/
 
 # The deliverable IS the exported dataset, so data/output is tracked — except

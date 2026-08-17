@@ -16,7 +16,7 @@
 set -e
 
 DATA_DIR="${PATH_DATA_DIR:-/data}"
-mkdir -p "$DATA_DIR/raw" "$DATA_DIR/images" "$DATA_DIR/output"
+mkdir -p "$DATA_DIR/images" "$DATA_DIR/output"
 
 if [ "$(id -u)" = "0" ]; then
     chown -R appuser:appuser "$DATA_DIR" 2>/dev/null || true
