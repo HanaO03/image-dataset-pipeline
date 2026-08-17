@@ -1,0 +1,20 @@
+# --- HTTP / scraping ---------------------------------------------------------
+requests==2.32.3
+beautifulsoup4==4.12.3
+lxml==5.3.0
+
+# --- imaging -----------------------------------------------------------------
+Pillow==11.0.0
+ImageHash==4.3.1          # perceptual hashing (near-duplicate detection)
+
+# --- database ----------------------------------------------------------------
+psycopg[binary]==3.2.3
+
+# --- transform / export ------------------------------------------------------
+pandas==2.2.3
+pyarrow==18.1.0           # parquet writer
+
+# --- config / CLI ------------------------------------------------------------
+pydantic==2.10.3
+pydantic-settings==2.6.1
+typer==0.15.1

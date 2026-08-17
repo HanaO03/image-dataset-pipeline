@@ -1,0 +1,77 @@
+# =============================================================================
+#  `docker compose up` runs the whole thing: a clean database, the pipeline
+#  end to end, results in ./data/output. Then the pipeline container exits 0
+#  and Postgres stays up so the results can be queried.
+# =============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: imagepipeline-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-imagedb}
+      POSTGRES_USER: ${POSTGRES_USER:-pipeline}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pipeline}
+      # Page-level checksums, so silent storage corruption is detected on read
+      # rather than surfacing later as an inexplicable data bug. Costs a few
+      # percent of write throughput, which is irrelevant at this volume, and it
+      # can only be enabled at initdb time — hence here and not in a config file.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    ports:
+      # Exposed so a reviewer can connect with psql or a GUI and inspect the
+      # tables directly. 5433 on the host avoids clashing with a local Postgres.
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # `pg_isready` with the real user and database — the bare form reports
+      # ready while the target database is still being created.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pipeline} -d ${POSTGRES_DB:-imagedb}"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      # Gives initdb time to finish on a cold volume before the first probe
+      # counts against the retry budget.
+      start_period: 10s
+    restart: unless-stopped
+
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: imagepipeline-app
+    depends_on:
+      postgres:
+        # Wait for the healthcheck, not merely for the container to start.
+        # `depends_on` alone only guarantees creation order, which is the
+        # single most common cause of "connection refused" on first run.
+        # The application *also* retries — see db/connection.py — because a
+        # healthcheck narrows the race but does not eliminate it.
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-imagedb}
+      POSTGRES_USER: ${POSTGRES_USER:-pipeline}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pipeline}
+      PATH_DATA_DIR: /data
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_JSON: ${LOG_JSON:-true}
+      SOURCE_TARGET_PER_CLASS: ${SOURCE_TARGET_PER_CLASS:-60}
+      SOURCE_MIN_PER_CLASS: ${SOURCE_MIN_PER_CLASS:-40}
+      # Optional: raises the Openverse rate limit. Anonymous access is the
+      # default and works without these.
+      SOURCE_OPENVERSE_CLIENT_ID: ${SOURCE_OPENVERSE_CLIENT_ID:-}
+      SOURCE_OPENVERSE_CLIENT_SECRET: ${SOURCE_OPENVERSE_CLIENT_SECRET:-}
+    volumes:
+      # Bind mount, not a named volume: the deliverable is the contents of
+      # ./data/output on the reviewer's own machine. A named volume would hide
+      # the results inside Docker where they are awkward to reach.
+      - ./data:/data
+    # A batch job, not a service. Without this, a non-zero exit — which is
+    # exactly what the quality gate produces — would send compose into a
+    # restart loop that re-runs the entire pipeline.
+    restart: "no"
+
+volumes:
+  pgdata:

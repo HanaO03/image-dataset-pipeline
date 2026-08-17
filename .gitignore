@@ -1,0 +1,19 @@
+.env
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Working stores — reproducible by running the pipeline, not worth versioning.
+data/raw/
+data/images/
+
+# The deliverable IS the exported dataset, so data/output is tracked — except
+# the full image copies, which are large and regenerable. A small sample is
+# committed under data/output/sample_images/ so the data can be eyeballed
+# without a 80 MB clone.
+data/output/images/
