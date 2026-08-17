@@ -76,3 +76,25 @@ VOLUME ["/data"]
 # actually stops the pipeline instead of detaching from it.
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
 CMD ["python", "-m", "src.cli", "run"]
+
+
+# --- test --------------------------------------------------------------------
+# A separate stage so the shipped image carries no test code and no pytest,
+# while `make test` still needs nothing on the reviewer's machine but Docker.
+# Requiring a local Python 3.12 to run the suite would mean, in practice, that
+# most reviewers never run it.
+FROM runtime AS test
+
+USER root
+# Installed from the same pinned file the project uses, rather than a version
+# repeated here — two pins drift, one does not.
+# Both files: requirements-dev.txt begins with `-r requirements.txt`, which pip
+# resolves relative to the file it is reading, not to the working directory.
+COPY requirements.txt requirements-dev.txt /tmp/
+RUN pip install --no-cache-dir -r /tmp/requirements-dev.txt
+COPY --chown=appuser:appuser tests/ /app/tests/
+COPY --chown=appuser:appuser scripts/ /app/scripts/
+
+# cache_dir under /tmp: /app is not writable by appuser, and a permissions
+# warning on every test run trains people to ignore warnings.
+CMD ["python", "-m", "pytest", "tests", "-q", "-o", "cache_dir=/tmp/.pytest_cache"]

@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up run down clean logs psql status test lint verify-schema install
+.PHONY: help up run smoke down clean logs psql status test test-local lint verify-schema install
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -34,13 +34,17 @@ down:  ## Stop containers, keep data
 
 clean:  ## Stop containers and delete the database volume and all outputs
 	$(COMPOSE) down -v
-	rm -rf data/raw data/images data/output
+	rm -rf data/images data/output
 	@echo "cleaned. next 'make up' starts from a completely empty state."
 
-install:  ## Install dependencies locally (for running tests outside Docker)
+test:  ## Run the full suite in Docker, integration tests included (needs no local Python)
+	$(COMPOSE) --profile test build tests
+	$(COMPOSE) --profile test run --rm tests
+
+install:  ## Install dependencies locally (only needed for `make test-local`)
 	pip install -r requirements-dev.txt
 
-test:  ## Run the unit tests
+test-local:  ## Run the suite on the host — requires Python 3.12+ and `make install`
 	pytest -q tests/
 
 lint:  ## Lint

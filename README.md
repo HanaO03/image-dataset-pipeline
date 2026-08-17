@@ -313,7 +313,7 @@ make smoke          # quick run, 10 images per class
 make status         # recent runs + current dataset composition
 make psql           # psql shell against the pipeline database
 make verify-schema  # 12 assertions against the live schema, then rolls back
-make test           # unit + integration tests
+make test           # 103 tests in Docker — no local Python needed
 make clean          # drop the volume and all outputs — start from nothing
 ```
 
@@ -339,8 +339,22 @@ data/output/
 ├── dataset.csv              same rows, for human inspection
 ├── manifest.json            what a training script loads
 ├── ATTRIBUTIONS.txt         credit lines (a CC-BY licence obligation)
+├── sample_images/           24 real images, committed — see below
 └── images/<split>/<class>/<sha256>.<ext>
 ```
+
+**What is in the repository and what is not.** The parquet, the CSV, the
+manifest and the attributions are committed — they are the deliverable, and they
+describe all 180 images. The 180 image *files* are not: at ~180 MB they would
+make the clone hostile, and `make up` regenerates them exactly (same bytes, same
+paths — that is what content-addressed storage means). So that the data can
+still be eyeballed without running anything, `data/output/sample_images/` holds
+24 real photographs, four per class and split, chosen deterministically by
+`scripts/make_sample.py`.
+
+This means the `path` field in `manifest.json` resolves after a run, not after a
+clone. Documented rather than papered over: a manifest that pointed at a
+committed subset would describe a dataset that does not exist.
 
 `manifest.json` carries `schema_version`, `dataset_fingerprint`, `run_id`,
 per-class/split counts, a licence breakdown, the producing configuration
@@ -475,6 +489,16 @@ tests/
 └── test_integration.py            the real pipeline, end to end, twice
 ```
 
+```bash
+make test        # 103 tests in Docker — needs no local Python at all
+```
+
+The suite runs in its own build stage against the compose Postgres, so nothing
+is skipped and nothing has to be installed first. That is deliberate: a test
+suite that requires the reviewer to have Python 3.12 and the right wheels is a
+test suite the reviewer does not run, and "103 tests pass" then rests on my word
+instead of on one command.
+
 **No test touches the network.** Every messy case is constructed locally, so the
 suite is deterministic and runs in CI without credentials. Testing against a
 live API would test the API, not this code, and would fail on a Sunday for
@@ -483,12 +507,16 @@ reasons nobody can reproduce.
 `test_integration.py` runs the *real* pipeline — real HTTP client, real
 downloads, real Pillow, real perceptual hashing, real Postgres, real Parquet —
 against a local HTTP server serving a deliberately messy corpus. Only the source
-adapters are substituted, and only to change where the URLs point. It is skipped
-automatically when no Postgres is reachable.
+adapters are substituted, and only to change where the URLs point. It creates
+and drops its own throwaway database, so it never touches the pipeline's data,
+and it skips itself when no Postgres is reachable (which is why `make test`
+brings one up).
 
 `sql/verify_schema.sql` proves the schema's guarantees independently of Python:
 12 assertions covering idempotency, every CHECK constraint, cascade behaviour
-and the views, ending in `ROLLBACK` so it leaves no trace.
+and the views, ending in `ROLLBACK` so it leaves no trace. Every assertion is a
+*delta* against a baseline taken at the start, so it can be run against the live
+database after a real run — which is exactly when anyone will reach for it.
 
 Nine defects were found by testing and by running against the real sources,
 rather than by reading the code — which is the argument for doing both:

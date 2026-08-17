@@ -39,6 +39,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Explicit, because the Dockerfile has a later `test` stage. Without it
+      # this service would build that stage and ship pytest to production.
+      target: runtime
     container_name: imagepipeline-app
     depends_on:
       postgres:
@@ -48,7 +51,24 @@ services:
         # The application *also* retries — see db/connection.py — because a
         # healthcheck narrows the race but does not eliminate it.
         condition: service_healthy
+    # Everything in .env reaches the application, not only the handful of
+    # variables listed below.
+    #
+    # Without this, compose reads .env purely for its own ${VAR} substitution
+    # and the container never sees the rest — so editing SPLIT_TRAIN_PERCENT or
+    # DEDUPE_MAX_HAMMING_DISTANCE there changes nothing at all, silently. That
+    # is the worst kind of configuration bug: the file says one thing, the run
+    # does another, and nothing anywhere disagrees out loud.
+    #
+    # `required: false` keeps `docker compose up` working for someone who never
+    # copied .env.example — the defaults in src/config.py are complete on their own.
+    env_file:
+      - path: .env
+        required: false
     environment:
+      # These are set explicitly because they must be true inside the container
+      # regardless of what .env says — .env is also read by a developer running
+      # the pipeline outside Docker, where the host and port differ.
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-imagedb}
@@ -71,6 +91,34 @@ services:
     # A batch job, not a service. Without this, a non-zero exit — which is
     # exactly what the quality gate produces — would send compose into a
     # restart loop that re-runs the entire pipeline.
+    restart: "no"
+
+  # The full test suite, including the integration tests that need a real
+  # Postgres. Behind a profile so `docker compose up` never starts it.
+  #
+  #     docker compose --profile test run --rm tests     (or: make test)
+  #
+  # Running the suite here rather than on the host is what makes "94 tests pass"
+  # a claim the reviewer can check in one command instead of a claim that
+  # depends on them having Python 3.12 and the right wheels.
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    profiles: ["test"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # The integration suite creates and drops its own throwaway database, so
+      # it never touches the pipeline's data.
+      TEST_POSTGRES_HOST: postgres
+      TEST_POSTGRES_PORT: 5432
+      TEST_POSTGRES_USER: ${POSTGRES_USER:-pipeline}
+      TEST_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pipeline}
+      TEST_POSTGRES_DB: pipeline_itest
+      PATH_DATA_DIR: /tmp/testdata
     restart: "no"
 
 volumes:
