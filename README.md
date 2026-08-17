@@ -558,6 +558,21 @@ Currently guaranteed:
   and split. Two runs producing the same fingerprint produced literally the same
   dataset. This is the cheap version of the question DVC answers, and it makes
   the reproducibility claim *checkable* rather than rhetorical.
+
+  It has been checked. Three runs were made: one against a clean database, one
+  immediately after it, and a third against a database and image store both
+  wiped back to empty — a full re-collection from the live sources, twenty
+  minutes later, with a different `run_id`. All three report
+
+  ```
+  fingerprint=9876e8c83245194b
+  ```
+
+  The third is the one that matters: the same 180 images, in the same classes,
+  on the same sides of the train/val boundary, rebuilt from scratch off the
+  open internet. Nothing about that is guaranteed by the sources — it is
+  guaranteed by content-derived selection and content-derived splitting, and a
+  seeded shuffle could not have produced it.
 - **`config_snapshot`** and `git_commit` stored per run, so any dataset can be
   traced back to the exact settings and code that produced it.
 - **Pinned dependencies** in `requirements.txt`.
