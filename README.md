@@ -303,6 +303,25 @@ python -c "import json; print(json.load(open('data/output/manifest.json'))['lice
 | **strict licence policy** | store with `license='UNKNOWN'` | the output trains a shipped model. Unknown provenance is a legal liability far more expensive than the handful of images it costs. |
 | **threads, not processes** | multiprocessing | the work is I/O-bound. Processes would add overhead and no throughput. |
 
+### Scope: one stretch goal, taken deliberately
+
+The brief allows at most one, so the choice was made on which one earns its
+keep. **Near-duplicate detection via perceptual hashing** was the answer,
+because it is the only option on the list that changes whether the *dataset* is
+correct rather than how it is packaged: a re-encoded copy landing on the
+opposite side of the train/val boundary makes validation accuracy a lie, and no
+amount of orchestration or annotation formatting would catch that. It is also
+listed as the bonus in Part B, so it counts twice.
+
+The other four were declined on purpose, not skipped:
+
+| not done | why |
+|---|---|
+| Airflow / Prefect / Dagster | `docker compose up` must run end to end. An orchestrator inside compose is startup risk for no benefit at 180 images — and each stage is already shaped like a task, so adopting one is mechanical. |
+| DVC / Git LFS | `dataset_fingerprint` answers the question DVC is wanted for — "is this the same dataset?" — in sixteen characters and no extra tooling. The upgrade path is one command, noted under Reproducibility. |
+| Polars / PyArrow | Pandas touches 180 rows once, at export. Swapping the engine would be a change with no measurable effect, made to look like range. |
+| COCO-format manifest | COCO describes bounding boxes and segmentation masks. This is a classification dataset with none of either, so a COCO manifest would be mostly empty fields — a worse artefact that merely looks more sophisticated. |
+
 ---
 
 ## Running and inspecting
