@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0",
   "dataset_fingerprint": "9876e8c83245194b",
-  "run_id": "2ce3e5c7-86c0-4e16-a213-0efc6be243cc",
-  "created_at": "2026-08-17T10:55:31.122424+00:00",
+  "run_id": "7a893a9a-e77c-4cb1-83e3-798aae08ea93",
+  "created_at": "2026-08-17T11:00:56.885834+00:00",
   "n_images": 180,
   "classes": [
     "bird",
