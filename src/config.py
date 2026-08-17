@@ -64,7 +64,7 @@ class HttpSettings(BaseSettings):
     #: Identifies us to the sources. Wikimedia's policy explicitly requires a
     #: descriptive User-Agent with a contact; anonymous scrapers get blocked.
     user_agent: str = (
-        "AICare-DatasetPipeline/1.0 (take-home evaluation; contact: h.abukhadija@ow-jo.com)"
+        "AICare-DatasetPipeline/1.0 (take-home evaluation; contact: hanaaabukhadija@gmail.com)"
     )
     #: (connect, read). Separate values: a slow server is tolerable, an
     #: unreachable one is not.
