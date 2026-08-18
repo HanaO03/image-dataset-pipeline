@@ -606,20 +606,38 @@ Currently guaranteed:
   dataset. This is the cheap version of the question DVC answers, and it makes
   the reproducibility claim *checkable* rather than rhetorical.
 
-  It has been checked. Three runs were made: one against a clean database, one
-  immediately after it, and a third against a database and image store both
-  wiped back to empty — a full re-collection from the live sources, twenty
-  minutes later, with a different `run_id`. All three report
+  It has been checked, and the check is worth stating precisely, because the
+  guarantee has a boundary and the boundary is the interesting part.
+
+  **What the pipeline guarantees:** given the same candidates, the exported
+  dataset is identical — same images, same classes, same sides of the train/val
+  line. Selection and splitting are both derived from image content, with no
+  seed and no ordering dependency, so nothing about the execution — thread
+  scheduling, row order, the machine — can change the result. Three runs on
+  2026-08-17 confirmed it: a clean database, an immediate re-run, and a full
+  re-collection with both the database and the image store wiped, all reporting
 
   ```
   fingerprint=9876e8c83245194b
   ```
 
-  The third is the one that matters: the same 180 images, in the same classes,
-  on the same sides of the train/val boundary, rebuilt from scratch off the
-  open internet. Nothing about that is guaranteed by the sources — it is
-  guaranteed by content-derived selection and content-derived splitting, and a
-  seeded shuffle could not have produced it.
+  **What it cannot guarantee:** that the sources offer the same candidates on a
+  different day. A clean re-collection on 2026-08-18 fetched 322 candidates
+  instead of 321 — Openverse had indexed new images overnight — and produced a
+  different, equally valid dataset:
+
+  ```
+  fingerprint=3c34b24dc3c73f22
+  ```
+
+  That is the live web moving, not the pipeline wobbling, and no amount of
+  determinism in this repository can hold the internet still. What the
+  fingerprint buys is that the difference is *visible in one line* instead of
+  being discovered months later by a confused colleague: two runs that disagree
+  say immediately that the input changed, while `config_snapshot` and
+  `git_commit` on each run say whether the code did. Pinning a dataset against
+  upstream drift is precisely the job DVC exists for — the upgrade path noted
+  below, and the reason it is an upgrade rather than something this replaces.
 - **`config_snapshot`** and `git_commit` stored per run, so any dataset can be
   traced back to the exact settings and code that produced it.
 - **Pinned dependencies** in `requirements.txt`.
