@@ -468,8 +468,8 @@ problem, not a reason to refuse to run.
 ## Results from the delivered run
 
 `make up` against a clean database and an empty image store, 2026-08-18. Run
-`a1a37617-a448-4a97-ac62-c5535602a163`, exit code 0, `status=SUCCESS`, 268
-seconds, `git_commit=01ae062-dirty`.
+`79d63002-01eb-4ffe-ac14-81da38ef55be`, exit code 0, `status=SUCCESS`, 267
+seconds, `git_commit=4728ccc-dirty`.
 
 > **Why `-dirty`, and why the manifest names a different run.** The commit id is
 > resolved with `git describe --dirty`, and the tree was dirty for an honest
@@ -477,7 +477,7 @@ seconds, `git_commit=01ae062-dirty`.
 > `data/output`, which is tracked. The label says so rather than naming a commit
 > whose tree is not what ran.
 >
-> The committed `manifest.json` is from `251d6fbb-…`, the idempotent re-run
+> The committed `manifest.json` is from `370aa2de-…`, the idempotent re-run
 > quoted at the end of this section — same fingerprint, same 180 images, so the
 > artefact describes the same dataset the figures below describe. That is the
 > reproducibility claim demonstrated rather than asserted.
@@ -535,6 +535,19 @@ that enforces it runs over both sources. Every `license` also agrees with its
 the parsing defect and the check that catches it are described under
 [Handling messy data](#handling-messy-data).
 
+**Attribution** — every credit line names a person or an account, which also was
+not true of the previous export: two Commons rows credited a paragraph of
+description rather than an author, one of them cut mid-word at 500 characters.
+Checkable on the delivered CSV: no attribution exceeds 200 characters and none
+contains a VIAF or ISNI identifier.
+
+**One honest miss.** `Bird_Diversity_2011.png` is a montage of several species,
+not a photograph of one bird, and it passed every check: it is a valid PNG of
+reasonable size and ordinary aspect ratio. Nothing cheap distinguishes a
+composite from a subject — that is what the embedding-based work under
+[what I would do with more time](#what-i-would-do-with-more-time) would buy, and
+it is worth knowing the dataset contains it.
+
 **What was rejected, and why**
 
 | reason | n | what it was |
@@ -549,8 +562,8 @@ Every rejection is a queryable row in `rejections`, not a log line — and
 ```
  run      | fetched | kept | rejected | trimmed | rejection_rate_pct
 ----------+---------+------+----------+---------+--------------------
- a1a37617 |     322 |  180 |        8 |     134 |                2.5
- 251d6fbb |       0 |    0 |        0 |       0 |
+ 79d63002 |     322 |  180 |        8 |     134 |                2.5
+ 370aa2de |       0 |    0 |        0 |       0 |
 ```
 
 A **2.5% defect rate** against live sources. `OVER_TARGET` is a capacity
@@ -559,7 +572,7 @@ rejection rate would put a perfectly healthy run at 44% and destroy the one
 number this view exists to make comparable across runs.
 
 **The second run, immediately after.** Run
-`251d6fbb-3bed-485c-9362-00206def7c81`, exit code 0, **two seconds**:
+`370aa2de-6e11-4bc9-a351-004e45b23017`, exit code 0, **1.5 seconds**:
 
 ```
 ingest      fetched=0   classes_at_target=6

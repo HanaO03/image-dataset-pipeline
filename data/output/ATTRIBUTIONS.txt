@@ -122,7 +122,7 @@ Retaining these credits is a condition of the CC-BY family of licences.
 - images/train/bird/7f5e1f845eb1234609d3a793f0b9dbe43cfc833a48e1499d538a27ab25208181.png
     license: CC-BY-SA-3.0
     source:  https://commons.wikimedia.org/wiki/File:Bird_Diversity_2011.png
-    credit:  Southern_cassowary.jpg : Frank Wouters of Antwerp, Belgium Head_Peacock.jpg : http://commons.wikimedia.org/wiki/User:Jkather King_Penguin's_Toboggan_in_Asahiyama_Zoo.jpg : 青子守歌 Kiwi_hg.jpg : Hannes Grobe Opisthocomus_hoazin.jpg : Linda De Volder Ostrich_Ngorongoro_04.jpg : Nicor Colca-condor-c03.jpg : http://commons.wikimedia.org/wiki/User:File_Upload_Bot_(Colegota) BroadbilledHummingbird.jpg : www.naturespicsonline.com Mute_Swan_Osaka.jpg : Kuribo ( talk ) Owl_eyes.jpg : Brocken Inaglory Lightm
+    credit:  Southern_cassowary.jpg : Frank Wouters of Antwerp, Belgium Head_Peacock.jpg : http://commons.wikimedia.org/wiki/User:Jkather King_Penguin's_Toboggan_in_Asahiyama_Zoo.jpg : 青子守歌 Kiwi_hg.jpg : Hannes…
 - images/val/bird/7f8fcd8aa7393eab74f39f9ede149a5cb6960f6fe42a2dcf6aa7da2f68acf9ed.jpg
     license: CC-BY-2.0
     source:  https://www.flickr.com/photos/124790945@N06/48017819933
@@ -706,7 +706,7 @@ Retaining these credits is a condition of the CC-BY family of licences.
 - images/train/dog/f25ea2c076ea189e76bea0dcd210c78a0a6dd377cf967aa59f5475edcef788d5.jpg
     license: CC-BY-SA-4.0
     source:  https://commons.wikimedia.org/wiki/File:After_rescuing_a_man_on_Snowdon,_Mrs_Stephanie_McCarthy_established_a_rescue_service_using_Great_Dane_dogs_(1569359).jpg
-    credit:  Geoff Charles (1909–2002) Description Welsh photographer and photojournalist Date of birth/death 28 January 1909 7 March 2002 Location of birth Brymbo Authority file : Q5534081 VIAF : 66195543 ISNI : 0000000044619391 LCCN : no2005004275 GND : 1201607027 WorldCat creator QS:P170,Q5534081
+    credit:  Geoff Charles (1909–2002) Description Welsh photographer and photojournalist Date of birth/death 28 January 1909 7 March 2002 Location of birth Brymbo
 - images/val/dog/f599f8ca69f8a6273a9644b5528cd0b8ad268a8d772d945d136c6b96cd15e1c5.jpg
     license: CC-BY-2.0
     source:  https://www.flickr.com/photos/189561381@N07/51978405193

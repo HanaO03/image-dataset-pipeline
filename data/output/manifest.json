@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0",
   "dataset_fingerprint": "3c34b24dc3c73f22",
-  "run_id": "251d6fbb-3bed-485c-9362-00206def7c81",
-  "created_at": "2026-08-18T12:50:56.048076+00:00",
+  "run_id": "370aa2de-6e11-4bc9-a351-004e45b23017",
+  "created_at": "2026-08-18T13:32:29.470351+00:00",
   "n_images": 180,
   "classes": [
     "bird",
@@ -502,7 +502,7 @@
       "source": "wikimedia_commons",
       "source_url": "https://commons.wikimedia.org/wiki/File:Bird_Diversity_2011.png",
       "license": "CC-BY-SA-3.0",
-      "attribution": "Southern_cassowary.jpg : Frank Wouters of Antwerp, Belgium Head_Peacock.jpg : http://commons.wikimedia.org/wiki/User:Jkather King_Penguin's_Toboggan_in_Asahiyama_Zoo.jpg : 青子守歌 Kiwi_hg.jpg : Hannes Grobe Opisthocomus_hoazin.jpg : Linda De Volder Ostrich_Ngorongoro_04.jpg : Nicor Colca-condor-c03.jpg : http://commons.wikimedia.org/wiki/User:File_Upload_Bot_(Colegota) BroadbilledHummingbird.jpg : www.naturespicsonline.com Mute_Swan_Osaka.jpg : Kuribo ( talk ) Owl_eyes.jpg : Brocken Inaglory Lightm",
+      "attribution": "Southern_cassowary.jpg : Frank Wouters of Antwerp, Belgium Head_Peacock.jpg : http://commons.wikimedia.org/wiki/User:Jkather King_Penguin's_Toboggan_in_Asahiyama_Zoo.jpg : 青子守歌 Kiwi_hg.jpg : Hannes…",
       "checksum": {
         "algorithm": "sha256",
         "value": "7f5e1f845eb1234609d3a793f0b9dbe43cfc833a48e1499d538a27ab25208181"
@@ -2602,7 +2602,7 @@
       "source": "wikimedia_commons",
       "source_url": "https://commons.wikimedia.org/wiki/File:After_rescuing_a_man_on_Snowdon,_Mrs_Stephanie_McCarthy_established_a_rescue_service_using_Great_Dane_dogs_(1569359).jpg",
       "license": "CC-BY-SA-4.0",
-      "attribution": "Geoff Charles (1909–2002) Description Welsh photographer and photojournalist Date of birth/death 28 January 1909 7 March 2002 Location of birth Brymbo Authority file : Q5534081 VIAF : 66195543 ISNI : 0000000044619391 LCCN : no2005004275 GND : 1201607027 WorldCat creator QS:P170,Q5534081",
+      "attribution": "Geoff Charles (1909–2002) Description Welsh photographer and photojournalist Date of birth/death 28 January 1909 7 March 2002 Location of birth Brymbo",
       "checksum": {
         "algorithm": "sha256",
         "value": "f25ea2c076ea189e76bea0dcd210c78a0a6dd377cf967aa59f5475edcef788d5"
