@@ -12,9 +12,25 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.config import SplitSettings
-from src.models import ImageRecord, SourceName, Split
-from src.pipeline.normalize import normalise_license, requires_attribution
+from pathlib import Path
+
+from src.config import LicenseSettings, SplitSettings
+from src.models import (
+    DownloadedImage,
+    ImageRecord,
+    RawRecord,
+    RejectionReason,
+    SourceName,
+    Split,
+    ValidatedImage,
+)
+from src.pipeline import normalize
+from src.pipeline.normalize import (
+    license_elements,
+    license_permits,
+    normalise_license,
+    requires_attribution,
+)
 from src.pipeline.split import SplitCandidate, assign, split_score
 
 
@@ -70,6 +86,149 @@ def test_attribution_requirement_is_derived_from_the_licence():
     assert requires_attribution("CC-BY-SA-3.0")
     assert not requires_attribution("CC0-1.0")
     assert not requires_attribution("PDM-1.0")
+
+
+# =============================================================================
+#  Licence policy
+# =============================================================================
+#
+#  These exist because the policy was, for a while, only half enforced. The
+#  Openverse query carried `license_type=commercial,modification`, which is a
+#  filter on the API and on nothing else — so an NC or ND licence read off a
+#  Commons file page normalised cleanly and was stored, in a dataset the
+#  documentation described as usable for commercial training. The filter was
+#  real. Its scope was not what the prose claimed.
+#
+#  The gate below is source-blind by construction: it runs after both sources
+#  have converged on one SPDX identifier, so there is no path around it.
+
+
+@pytest.mark.parametrize(
+    "spdx,expected",
+    [
+        ("CC-BY-4.0", {"BY"}),
+        ("CC-BY-SA-2.0", {"BY", "SA"}),
+        ("CC-BY-NC-2.0", {"BY", "NC"}),
+        ("CC-BY-NC-ND-2.0", {"BY", "NC", "ND"}),
+        ("CC-BY-NC-SA-4.0", {"BY", "NC", "SA"}),
+        # Public domain restricts nothing, and must not be read as if it did.
+        ("CC0-1.0", set()),
+        ("PDM-1.0", set()),
+    ],
+)
+def test_elements_are_read_off_the_spdx_identifier(spdx, expected):
+    assert license_elements(spdx) == frozenset(expected)
+
+
+@pytest.mark.parametrize(
+    "spdx",
+    ["CC-BY-4.0", "CC-BY-SA-2.0", "CC-BY-3.0", "CC0-1.0", "PDM-1.0"],
+)
+def test_licences_that_permit_training_are_admitted(spdx):
+    assert license_permits(spdx, ("NC", "ND"))
+
+
+@pytest.mark.parametrize(
+    "spdx",
+    [
+        "CC-BY-NC-2.0",       # no commercial use
+        "CC-BY-ND-2.0",       # no derivative works — and a model is arguably one
+        "CC-BY-NC-ND-2.0",
+        "CC-BY-NC-SA-4.0",
+    ],
+)
+def test_nc_and_nd_licences_are_refused(spdx):
+    assert not license_permits(spdx, ("NC", "ND"))
+
+
+def test_the_policy_is_configurable_for_a_dataset_that_will_never_ship():
+    """Research use may legitimately admit NC. ND is a separate decision."""
+    assert license_permits("CC-BY-NC-2.0", ("ND",))
+    assert not license_permits("CC-BY-ND-2.0", ("ND",))
+    assert license_permits("CC-BY-NC-ND-2.0", ())
+
+
+def _validated(license_raw: str, sha: str) -> ValidatedImage:
+    """A minimal ValidatedImage carrying one licence. No files, no network."""
+    raw = RawRecord(
+        source=SourceName.WIKIMEDIA_COMMONS,
+        class_label="cat",
+        image_url=f"https://upload.wikimedia.org/{sha[:6]}.jpg",
+        source_id=sha[:6],
+        landing_url="https://commons.wikimedia.org/wiki/File:X.jpg",
+        license_raw=license_raw,
+        attribution="A Photographer",
+    )
+    return ValidatedImage(
+        downloaded=DownloadedImage(
+            raw=raw,
+            storage_path=Path(f"/data/images/{sha[:2]}/{sha}.jpg"),
+            sha256=sha,
+            file_size_bytes=4096,
+        ),
+        image_format="JPEG",
+        width=800,
+        height=600,
+        phash="0" * 16,
+    )
+
+
+def test_a_scraped_nc_image_is_rejected_with_its_own_reason_code():
+    """
+    The regression this gate exists for, at the stage that now catches it.
+
+    Commons is scraped, not queried, so nothing upstream of normalisation can
+    filter it. An NC licence arrives as perfectly valid free text, maps to a
+    perfectly valid SPDX identifier, and must still not enter the dataset.
+    """
+    result = normalize.run(
+        [
+            (_validated("CC BY-NC-SA 2.0", "a" * 64), None, None),
+            (_validated("CC BY-SA 2.0", "b" * 64), None, None),
+        ],
+        LicenseSettings(),
+    )
+
+    assert [r.sha256 for r in result.kept] == ["b" * 64]
+    assert [r.reason_code for r in result.rejections] == [
+        RejectionReason.LICENSE_NOT_PERMITTED
+    ]
+    assert "NC" in result.rejections[0].detail
+    assert result.metrics["rejected_license_not_permitted"] == 1
+
+
+def test_a_refused_licence_is_distinguishable_from_an_unreadable_one():
+    """
+    Two different failures that must not share a reason code: one says the
+    source changed its markup, the other says the source is serving licences we
+    will not take. Merging them would hide the second behind the first.
+    """
+    result = normalize.run(
+        [
+            (_validated("CC BY-ND 2.0", "c" * 64), None, None),
+            (_validated("All rights reserved", "d" * 64), None, None),
+        ],
+        LicenseSettings(),
+    )
+
+    assert result.kept == []
+    assert {r.reason_code for r in result.rejections} == {
+        RejectionReason.LICENSE_NOT_PERMITTED,
+        RejectionReason.UNRECOGNISED_LICENSE,
+    }
+
+
+def test_public_domain_images_are_never_caught_by_the_gate():
+    """CC0 and PDM carry no elements at all; a naive substring check fails here."""
+    result = normalize.run(
+        [
+            (_validated("CC0", "e" * 64), None, None),
+            (_validated("Public domain", "f" * 64), None, None),
+        ],
+        LicenseSettings(),
+    )
+    assert len(result.kept) == 2
+    assert result.rejections == []
 
 
 # =============================================================================

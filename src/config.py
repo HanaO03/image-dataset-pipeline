@@ -125,6 +125,47 @@ class ValidationSettings(BaseSettings):
     require_license: bool = True
 
 
+class LicenseSettings(BaseSettings):
+    """
+    What licences are allowed to reach the dataset, enforced for every source.
+
+    This exists because the policy previously lived in one place it could not
+    cover: `SourceSettings.openverse_license_type`, a query parameter on the
+    API. That filters the API and nothing else, so a Commons file page carrying
+    an NC or ND licence was mapped to a valid SPDX identifier and stored — in a
+    dataset the documentation described as usable for commercial training. The
+    filter was real; its scope was not what the prose claimed.
+
+    The API filter stays, because not fetching an image is cheaper than
+    fetching and discarding it. This is the gate that makes the claim true:
+    it runs at normalisation, after both sources converge on one schema, so it
+    applies to every image regardless of where it came from.
+
+    Why these two elements:
+      * **ND** (NoDerivatives) — a model trained on an image is arguably a
+        derivative work, so ND images are not safely usable as training data.
+      * **NC** (NonCommercial) — rules the image out of any commercial product.
+
+    Set `forbidden_elements=[]` for a research dataset that will never ship.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="LICENSE_", extra="ignore")
+
+    forbidden_elements: tuple[str, ...] = ("NC", "ND")
+
+    @field_validator("forbidden_elements")
+    @classmethod
+    def _known_elements(cls, v: tuple[str, ...]) -> tuple[str, ...]:
+        allowed = {"BY", "NC", "ND", "SA"}
+        upper = tuple(e.strip().upper() for e in v if e.strip())
+        unknown = set(upper) - allowed
+        if unknown:
+            raise ValueError(
+                f"unknown CC element(s) {sorted(unknown)}; expected any of {sorted(allowed)}"
+            )
+        return upper
+
+
 class DedupeSettings(BaseSettings):
     """
     Deduplication.
@@ -372,6 +413,7 @@ class Settings(BaseSettings):
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     http: HttpSettings = Field(default_factory=HttpSettings)
     validation: ValidationSettings = Field(default_factory=ValidationSettings)
+    license: LicenseSettings = Field(default_factory=LicenseSettings)
     dedupe: DedupeSettings = Field(default_factory=DedupeSettings)
     split: SplitSettings = Field(default_factory=SplitSettings)
     sources: SourceSettings = Field(default_factory=SourceSettings)

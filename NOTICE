@@ -17,7 +17,12 @@ Where to find the terms for a given image:
 Retaining those credits is a condition of the CC-BY family and the reason
 ATTRIBUTIONS.txt is generated on every run rather than written once by hand.
 
-The pipeline only collects images whose licence permits both commercial use
-and modification, and rejects any image whose licence it cannot determine —
-see the licence policy in README.md. That is a deliberate constraint on what
-this dataset contains; it is not legal advice about what you may do with it.
+The pipeline rejects any image whose licence it cannot determine, and any
+licence carrying NC (NonCommercial) or ND (NoDerivatives). Both rules are
+enforced in `src/pipeline/normalize.py`, after the two sources converge on one
+SPDX identifier, so they apply to the scraped source as well as to the API —
+and both are pinned by tests in `tests/test_normalize_and_split.py`.
+
+That is a statement about what this pipeline admits, not legal advice about
+what you may do with what it produced. The per-image licence in the manifest is
+the authority; if it disagrees with anything here, it wins.

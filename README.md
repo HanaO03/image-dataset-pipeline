@@ -28,7 +28,7 @@ trust.
 |---|---|---|
 | **A1** API collection, 40–60 per class | `src/sources/openverse.py` | 60 per class, delivered — [Results](#results-from-the-delivered-run) |
 | **A2** Scraping a real HTML page | `src/sources/wikimedia.py` | Commons category → file page → licence; the API is deliberately *not* used |
-| **A3** Messy sources handled, not sanded away | `src/pipeline/validate.py`, `rejections` table | [12 failure modes, each with a reason code and a test](#handling-messy-data) |
+| **A3** Messy sources handled, not sanded away | `src/pipeline/validate.py`, `rejections` table | [15 failure modes, each with a reason code and a test](#handling-messy-data) |
 | **B** Exact deduplication | `sql/schema.sql` — `images.sha256 UNIQUE` | [Enforced by the database, not by Python](#database-design) |
 | **B** Near-duplicate detection *(bonus)* | `src/pipeline/dedupe.py` | pHash, Hamming ≤ 5 — [the one stretch goal taken](#scope-one-stretch-goal-taken-deliberately) |
 | **B** File validation | `src/pipeline/validate.py` | [Decode twice; the `verify()` trap](#handling-messy-data) |
@@ -81,7 +81,7 @@ trust.
   │                                                                            │
   │  4. DEDUPE      exact: UNIQUE(sha256)  ·  near: pHash + Hamming ≤ 5        │
   │                                                                            │
-  │  5. NORMALIZE   licence → SPDX, one schema across both sources             │
+  │  5. NORMALIZE   licence → SPDX; NC/ND refused, whatever the source        │
   │                                                                            │
   │  6. SELECT      trim each class back to the target (60)                    │
   │                            └──────►  images (curated)                      │
@@ -127,7 +127,7 @@ src/
 │   ├── download.py      content-addressed storage, streaming sha256
 │   ├── validate.py      ★ pure functions — the most heavily tested module
 │   ├── dedupe.py        perceptual hashing + Hamming search
-│   ├── normalize.py     licence → SPDX; the strict-licence policy
+│   ├── normalize.py     licence → SPDX; the licence policy, for every source
 │   ├── select.py        ★ pure — holds each class to its target size
 │   ├── split.py         ★ pure, deterministic, content-derived
 │   ├── export.py        parquet / csv / manifest / attributions
@@ -248,9 +248,13 @@ each has a specific `reason_code` and a test:
 | `.jpg` URL serving PNG bytes | Pillow's detected format vs the URL extension | `EXTENSION_MISMATCH` |
 | result has no direct image URL | checked at ingest, before spending a download | `MISSING_IMAGE_URL` |
 | no licence, or one we cannot map | strict policy — rejected, never stored | `MISSING_LICENSE` / `UNRECOGNISED_LICENSE` |
+| a licence we *can* read that forbids training | NC/ND gate at normalisation, after both sources converge | `LICENSE_NOT_PERMITTED` |
 | 1×1 tracking pixels, favicons | dimension and file-size floors | `DIMENSIONS_TOO_SMALL` |
 | banners, spritesheets, diagrams | aspect-ratio bound (> 6:1) | `ASPECT_RATIO_EXTREME` |
 | decompression bombs | `Image.MAX_IMAGE_PIXELS` | `IMAGE_BOMB` |
+| a 200 response with an empty body | byte count after streaming | `EMPTY_RESPONSE` |
+| a file larger than the streaming cap | size enforced mid-stream, not from `Content-Length` | `TOO_LARGE` |
+| a host that accepts the connection and never answers | connect and read timeouts on every request | `TIMEOUT` |
 | same image from both sources | `sha256` unique constraint | `EXACT_DUPLICATE` |
 | resized / re-compressed copy | pHash, Hamming ≤ 5 | `NEAR_DUPLICATE` |
 | rate limiting (429) | backoff with jitter, `Retry-After` honoured | `HTTP_ERROR` |
@@ -293,8 +297,28 @@ rest out for any commercial product.
 
 The dataset was *correct* — every licence was captured and normalised
 accurately — and simultaneously *unusable*, which is the more interesting kind
-of failure. The filter is now `license_type=commercial,modification`, applied
-at the source so the images are never fetched in the first place.
+of failure.
+
+**The policy is enforced in two places, and it needs both.**
+
+| layer | what it does | why it is not enough alone |
+|---|---|---|
+| `license_type=commercial,modification` on the Openverse query | the images are never fetched | it is a parameter on *one* source's API. Commons is scraped: there is no filter to set, and a file page states whatever it states |
+| `LicenseSettings.forbidden_elements` at the normalise stage | rejects `NC` and `ND` from any source, with reason code `LICENSE_NOT_PERMITTED` | it costs a download to discover — which is why the API filter stays |
+
+The second layer was added after the first was found to be doing less than the
+documentation claimed. The prose said "the pipeline only collects images that
+permit commercial use and modification"; the code said that only about
+Openverse, and a scraped NC image would have been stored in a dataset described
+as commercially usable. Nothing in the delivered dataset was affected — Commons
+happened to supply only free licences — which is precisely what makes the gap
+the dangerous kind: correct output, unsound reason, and no failing run to point
+at it.
+
+The gate runs *after* both sources converge on one SPDX identifier, so it
+cannot be bypassed by adding a third source later. `tests/test_normalize_and_split.py`
+pins it, including the case that motivated it: a scraped `CC BY-NC-SA 2.0`
+image, rejected.
 
 Verify it on any run:
 
@@ -361,7 +385,7 @@ make smoke          # quick run, 10 images per class
 make status         # recent runs + current dataset composition
 make psql           # psql shell against the pipeline database
 make verify-schema  # 12 assertions against the live schema, then rolls back
-make test           # 103 tests in Docker — no local Python needed
+make test           # 138 tests in Docker — no local Python needed
 make clean          # drop the volume and all outputs — start from nothing
 ```
 
@@ -554,28 +578,29 @@ tests/
 ├── conftest.py                    deliberately corrupt image fixtures
 ├── test_validate.py               one fixture per rejection reason
 ├── test_dedupe.py                 pHash robustness + false-positive guard
-├── test_normalize_and_split.py    licence mapping, stratification, leakage
+├── test_normalize_and_split.py    licence mapping, the NC/ND gate, stratification, leakage
 ├── test_select.py                 class targets, determinism, orphan markings
-├── test_http_client.py            robots.txt, retries, per-host throttling
+├── test_download.py               the four rejections this stage owns
+├── test_http_client.py            robots.txt, per-host throttling, retries and 429
 ├── test_sources.py                adapter parsing against canned payloads
 └── test_integration.py            the real pipeline, end to end, twice
 ```
 
 ```bash
-make test        # 103 tests in Docker — needs no local Python at all
+make test        # 138 tests in Docker — needs no local Python at all
 ```
 
 The suite runs in its own build stage against the compose Postgres, so nothing
 is skipped and nothing has to be installed first. That is deliberate: a test
 suite that requires the reviewer to have Python 3.12 and the right wheels is a
-test suite the reviewer does not run, and "103 tests pass" then rests on my word
+test suite the reviewer does not run, and "138 tests pass" then rests on my word
 instead of on one command.
 
 It also runs on every push — [`.github/workflows/ci.yml`](.github/workflows/ci.yml),
 the badge at the top of this file. Lint, the full suite against a real Postgres
 service (so the integration test runs rather than skipping, and `-rs` reports it
 if it ever does skip), and a build of both Docker stages. The point is not the
-green tick: it is that "103 tests pass" and "`docker compose up` builds" are
+green tick: it is that "138 tests pass" and "`docker compose up` builds" are
 verified on a clean machine that is not mine, which is the only machine whose
 verdict actually matters here.
 
@@ -598,8 +623,10 @@ and the views, ending in `ROLLBACK` so it leaves no trace. Every assertion is a
 *delta* against a baseline taken at the start, so it can be run against the live
 database after a real run — which is exactly when anyone will reach for it.
 
-Nine defects were found by testing and by running against the real sources,
-rather than by reading the code — which is the argument for doing both:
+Ten defects were found. Nine came from testing and from running against the
+real sources rather than from reading the code — which is the argument for
+doing both. The tenth came from reading, and is the one I would most want a
+reviewer to notice:
 
 1. **An image was its own near-duplicate on re-run.** The pHash index is seeded
    from the database, which already contains every image about to be
@@ -652,6 +679,22 @@ rather than by reading the code — which is the argument for doing both:
    two failure modes that trim introduced — a dataset creeping past the target
    on every re-run, and a near-duplicate left pointing at an image that was
    itself trimmed — are both covered in `tests/test_select.py`.
+10. **The licence policy covered one source and claimed to cover both.**
+   `license_type=commercial,modification` is a parameter on the Openverse
+   query. Commons is scraped, so nothing filtered it: an `NC` or `ND` licence
+   on a file page normalised to a valid SPDX identifier and was stored, in a
+   dataset the README described as usable for commercial training. No run ever
+   failed over it, because Commons happened to supply only free licences — the
+   output stayed correct while the reason for it did not. Fixed by gating at
+   the normalise stage, where both sources have already converged, with
+   `LICENSE_NOT_PERMITTED` as its own reason code. Found by re-reading my own
+   documentation against my own code, which is the cheapest review there is and
+   the one most easily skipped. Four of the twenty-two reason codes turned out
+   to have no test at the same time (`NOT_AN_IMAGE`, `TOO_LARGE`,
+   `EMPTY_RESPONSE`, `TIMEOUT`), as did the whole 429 path — all now covered in
+   `tests/test_download.py` and `tests/test_http_client.py`. Same lesson as
+   defect 7, learned again: a claim in a README is a test that has not been
+   written yet.
 
 ---
 

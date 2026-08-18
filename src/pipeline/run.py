@@ -243,7 +243,7 @@ class PipelineRunner:
 
     def _stage_normalize(self, deduped: list[Any], report: RunReport) -> list[ImageRecord]:
         with stage_context(Stage.NORMALIZE.value):
-            result = normalize.run(deduped)
+            result = normalize.run(deduped, self.settings.license)
             self._record(Stage.NORMALIZE, result, report)
             return result.kept
 

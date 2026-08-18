@@ -17,12 +17,21 @@ Anything we cannot map is **rejected**, not stored with a shrug. That is the
 strict licence policy carried through to its logical end: an unresolvable
 licence is indistinguishable from no licence, and this dataset is intended for
 training a model that will be shipped.
+
+The other half of that policy also lives here: a licence we *can* read, which
+forbids commercial use (NC) or derivative works (ND), is rejected too. It has
+to happen at this stage rather than at the source, because only one of the two
+sources has a licence filter to configure — the Openverse API does, a scraped
+Commons file page does not. Filtering only where it is convenient produces
+exactly the failure this stage now prevents: a dataset that is described as
+commercially usable and contains images that are not.
 """
 
 from __future__ import annotations
 
 import re
 
+from ..config import LicenseSettings
 from ..logging_setup import get_logger
 from ..models import (
     ImageRecord,
@@ -117,17 +126,68 @@ def requires_attribution(spdx: str) -> bool:
     return spdx.startswith("CC-BY")
 
 
-def run(items: list[tuple[ValidatedImage, str | None, int | None]]) -> StageResult:
+def license_elements(spdx: str) -> frozenset[str]:
     """
-    Build ImageRecords from validated images.
+    The CC elements carried by an SPDX identifier: `CC-BY-NC-SA-2.0` -> {BY,NC,SA}.
+
+    Parsed from the identifier rather than from the source's free text on
+    purpose — by this point the free text has already been normalised, and one
+    representation with one parser is the whole reason normalisation exists.
+    Public-domain marks (`CC0-1.0`, `PDM-1.0`) carry no elements and return
+    empty, which is correct: they restrict nothing.
+    """
+    if not spdx.startswith("CC-") or spdx.startswith("CC0"):
+        return frozenset()
+    body = spdx[len("CC-"):]
+    return frozenset(
+        part for part in body.split("-") if part in _CC_ELEMENTS
+    )
+
+
+def license_permits(spdx: str, forbidden_elements: tuple[str, ...]) -> bool:
+    """
+    Whether this licence may enter the dataset.
+
+    Pure and total, like `normalise_license`, and for the same reason: a
+    function encoding legal policy should be testable without constructing a
+    pipeline, a source or a file.
+    """
+    return not (license_elements(spdx) & set(forbidden_elements))
+
+
+def run(
+    items: list[tuple[ValidatedImage, str | None, int | None]],
+    settings: LicenseSettings,
+) -> StageResult:
+    """
+    Build ImageRecords from validated images, enforcing the licence policy.
 
     Input is the dedupe stage's output: (image, duplicate_of_sha256, distance).
+
+    The policy gate lives here, at the point where both sources have converged
+    on one schema, because that is the only place it can apply to all of them.
+    Filtering at the API covers the API alone — the scraper reads whatever the
+    file page says.
     """
     result = StageResult()
 
     for item, duplicate_of, distance in items:
         raw = item.raw
         spdx = normalise_license(raw.license_raw)
+
+        if spdx is not None and not license_permits(spdx, settings.forbidden_elements):
+            result.rejections.append(
+                Rejection.from_raw(
+                    raw,
+                    Stage.NORMALIZE,
+                    RejectionReason.LICENSE_NOT_PERMITTED,
+                    f"{spdx} carries "
+                    f"{'/'.join(sorted(license_elements(spdx) & set(settings.forbidden_elements)))}"
+                    f", which this dataset does not admit",
+                )
+            )
+            result.add_metric("rejected_license_not_permitted")
+            continue
 
         if spdx is None:
             result.rejections.append(

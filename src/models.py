@@ -86,6 +86,13 @@ class RejectionReason(StrEnum):
     UNRECOGNISED_LICENSE = "UNRECOGNISED_LICENSE"
     PARSE_ERROR = "PARSE_ERROR"                   # scraper could not read the item
 
+    # -- normalize ------------------------------------------------------------
+    #: The licence was read and understood, and it forbids what this dataset is
+    #: for. Deliberately distinct from UNRECOGNISED_LICENSE: that one means we
+    #: could not tell, this one means we could — and the answer was no. Merging
+    #: them would hide a source quietly turning NC behind a parser complaint.
+    LICENSE_NOT_PERMITTED = "LICENSE_NOT_PERMITTED"
+
     # -- download -------------------------------------------------------------
     HTTP_ERROR = "HTTP_ERROR"
     TIMEOUT = "TIMEOUT"
