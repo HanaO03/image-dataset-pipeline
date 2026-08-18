@@ -3,10 +3,6 @@ ATTRIBUTIONS
 Images in this dataset are reused under the licences listed below.
 Retaining these credits is a condition of the CC-BY family of licences.
 
-- images/val/bird/062b3abe29db6cd77e8aacfc71e749a1754059cb2d54b1272e5155dd06eeb140.jpg
-    license: CC-BY-2.0
-    source:  https://www.flickr.com/photos/48268815@N02/51926330701
-    credit:  "Bird watching at Discovery Park" by Seattle Parks & Recreation is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.
 - images/train/bird/099ceb371de182674ab37e34a3a6d0e978ed098e71592169711f69ee0825e5d6.jpg
     license: CC-BY-SA-2.0
     source:  https://www.flickr.com/photos/48503330@N08/15521859014
@@ -123,10 +119,18 @@ Retaining these credits is a condition of the CC-BY family of licences.
     license: CC-BY-2.0
     source:  https://www.flickr.com/photos/7876549@N07/51614919157
     credit:  "Richmond Bird Wing Butterfly" by Marcus Grbac is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.
+- images/train/bird/7f5e1f845eb1234609d3a793f0b9dbe43cfc833a48e1499d538a27ab25208181.png
+    license: CC-BY-SA-3.0
+    source:  https://commons.wikimedia.org/wiki/File:Bird_Diversity_2011.png
+    credit:  Southern_cassowary.jpg : Frank Wouters of Antwerp, Belgium Head_Peacock.jpg : http://commons.wikimedia.org/wiki/User:Jkather King_Penguin's_Toboggan_in_Asahiyama_Zoo.jpg : 青子守歌 Kiwi_hg.jpg : Hannes Grobe Opisthocomus_hoazin.jpg : Linda De Volder Ostrich_Ngorongoro_04.jpg : Nicor Colca-condor-c03.jpg : http://commons.wikimedia.org/wiki/User:File_Upload_Bot_(Colegota) BroadbilledHummingbird.jpg : www.naturespicsonline.com Mute_Swan_Osaka.jpg : Kuribo ( talk ) Owl_eyes.jpg : Brocken Inaglory Lightm
 - images/val/bird/7f8fcd8aa7393eab74f39f9ede149a5cb6960f6fe42a2dcf6aa7da2f68acf9ed.jpg
     license: CC-BY-2.0
     source:  https://www.flickr.com/photos/124790945@N06/48017819933
     credit:  "Myna (Common myna) bird on the tree, Thailand" by Phuketian.S is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.
+- images/train/bird/865902552134b96b7dcc1885d2d1929438fc04a97476f236319649cac3e19778.png
+    license: CC-BY-SA-3.0
+    source:  https://commons.wikimedia.org/wiki/File:Bird_Diversity_2013.png
+    credit:  Concerto
 - images/train/bird/8bded4a6625ca272c37da1399207c020c3f10d9cda5555d941899bd1106de546.jpg
     license: CC-BY-2.0
     source:  https://www.flickr.com/photos/165056554@N04/42041348224
@@ -151,7 +155,7 @@ Retaining these credits is a condition of the CC-BY family of licences.
     license: CC-BY-2.0
     source:  https://www.flickr.com/photos/56218409@N03/51498576594
     credit:  "Campeche Bird" by matthias.ripp is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.
-- images/train/bird/a620d0b800626dae18c92fbc38151d7dde1af28178f062b0c13bfad1cc528a21.jpg
+- images/val/bird/a620d0b800626dae18c92fbc38151d7dde1af28178f062b0c13bfad1cc528a21.jpg
     license: CC-BY-2.0
     source:  https://www.flickr.com/photos/137294100@N08/51343139244
     credit:  "Sunrise Birds" by radkuch.13 is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.
@@ -191,10 +195,6 @@ Retaining these credits is a condition of the CC-BY family of licences.
     license: CC-BY-2.0
     source:  https://www.flickr.com/photos/124790945@N06/48017806646
     credit:  "Myna (Common myna) bird on the tree, Thailand" by Phuketian.S is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.
-- images/val/bird/d95c209e876add1a76405b0aba0d45c40eec414a26537282d4b5f52c41784396.jpg
-    license: CC-BY-2.0
-    source:  https://www.flickr.com/photos/153584064@N07/51927621686
-    credit:  "Brown Speckled Bird (1743-1751) print in high resolution by George Edwards. Original from The National Gallery of Art. Digitally enhanced by rawpixel." by Free Public Domain Illustrations by rawpixel is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.
 - images/train/bird/d994767eacd1fa58ae772e56cdc923593d61e7d828414933e8cfe1df2fcd7da4.jpg
     license: CC-BY-SA-2.0
     source:  https://www.flickr.com/photos/55856449@N04/31737773605
@@ -227,7 +227,7 @@ Retaining these credits is a condition of the CC-BY family of licences.
     license: CC-BY-2.0
     source:  https://www.flickr.com/photos/153584064@N07/51927621721
     credit:  "Brown Bird with a Butterfly (1743-51) print in high resolution by George Edwards. Original from The National Gallery of Art. Digitally enhanced by rawpixel." by Free Public Domain Illustrations by rawpixel is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.
-- images/train/bird/f4bd9efeb19daccc15126d65cfaef3b944bf4bbbaee9a69ab22fe40c355321d8.jpg
+- images/val/bird/f4bd9efeb19daccc15126d65cfaef3b944bf4bbbaee9a69ab22fe40c355321d8.jpg
     license: CC-BY-2.0
     source:  https://www.flickr.com/photos/124790945@N06/48017895862
     credit:  "Myna (Common myna) bird on the tree, Thailand" by Phuketian.S is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.
@@ -660,7 +660,7 @@ Retaining these credits is a condition of the CC-BY family of licences.
     source:  https://www.flickr.com/photos/7675787@N06/52466103397
     credit:  "trail and dog" by marneejill is licensed under CC BY-SA 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by-sa/2.0/.
 - images/val/dog/cb186fe1ae9f81d8b151c601a6b51d01924d9f0b9f7a547b79c5477dfb5d11c7.jpg
-    license: CC0-1.0
+    license: PDM-1.0
     source:  https://commons.wikimedia.org/wiki/File:230705_NVWG_PORTLAND_0310_(53025872325).jpg
     credit:  U.S. Department of Veterans Affairs
 - images/train/dog/d0ecf1820496f0d44b8b19d526440b7b029c13c01bc8d4c6cd2bcbe635f4a1ec.jpg

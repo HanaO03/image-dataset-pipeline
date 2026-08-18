@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0",
-  "dataset_fingerprint": "9876e8c83245194b",
-  "run_id": "fb280a06-8d57-427d-b310-878050b1d32b",
-  "created_at": "2026-08-17T13:20:09.384693+00:00",
+  "dataset_fingerprint": "3c34b24dc3c73f22",
+  "run_id": "251d6fbb-3bed-485c-9362-00206def7c81",
+  "created_at": "2026-08-18T12:50:56.048076+00:00",
   "n_images": 180,
   "classes": [
     "bird",
@@ -28,13 +28,14 @@
     }
   },
   "licenses": {
-    "CC-BY-2.0": 90,
+    "CC-BY-2.0": 88,
     "CC-BY-3.0": 1,
     "CC-BY-4.0": 3,
     "CC-BY-SA-2.0": 44,
+    "CC-BY-SA-3.0": 2,
     "CC-BY-SA-4.0": 14,
-    "CC0-1.0": 7,
-    "PDM-1.0": 21
+    "CC0-1.0": 6,
+    "PDM-1.0": 22
   },
   "config": {
     "log_level": "INFO",
@@ -84,6 +85,12 @@
       ],
       "max_image_pixels": 50000000,
       "require_license": true
+    },
+    "license": {
+      "forbidden_elements": [
+        "NC",
+        "ND"
+      ]
     },
     "dedupe": {
       "enable_perceptual": true,
@@ -489,6 +496,36 @@
       "height": 1024
     },
     {
+      "path": "images/train/bird/7f5e1f845eb1234609d3a793f0b9dbe43cfc833a48e1499d538a27ab25208181.png",
+      "label": "bird",
+      "split": "train",
+      "source": "wikimedia_commons",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Bird_Diversity_2011.png",
+      "license": "CC-BY-SA-3.0",
+      "attribution": "Southern_cassowary.jpg : Frank Wouters of Antwerp, Belgium Head_Peacock.jpg : http://commons.wikimedia.org/wiki/User:Jkather King_Penguin's_Toboggan_in_Asahiyama_Zoo.jpg : 青子守歌 Kiwi_hg.jpg : Hannes Grobe Opisthocomus_hoazin.jpg : Linda De Volder Ostrich_Ngorongoro_04.jpg : Nicor Colca-condor-c03.jpg : http://commons.wikimedia.org/wiki/User:File_Upload_Bot_(Colegota) BroadbilledHummingbird.jpg : www.naturespicsonline.com Mute_Swan_Osaka.jpg : Kuribo ( talk ) Owl_eyes.jpg : Brocken Inaglory Lightm",
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "7f5e1f845eb1234609d3a793f0b9dbe43cfc833a48e1499d538a27ab25208181"
+      },
+      "width": 529,
+      "height": 785
+    },
+    {
+      "path": "images/train/bird/865902552134b96b7dcc1885d2d1929438fc04a97476f236319649cac3e19778.png",
+      "label": "bird",
+      "split": "train",
+      "source": "wikimedia_commons",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Bird_Diversity_2013.png",
+      "license": "CC-BY-SA-3.0",
+      "attribution": "Concerto",
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "865902552134b96b7dcc1885d2d1929438fc04a97476f236319649cac3e19778"
+      },
+      "width": 999,
+      "height": 1392
+    },
+    {
       "path": "images/train/bird/8bded4a6625ca272c37da1399207c020c3f10d9cda5555d941899bd1106de546.jpg",
       "label": "bird",
       "split": "train",
@@ -577,21 +614,6 @@
       },
       "width": 1024,
       "height": 700
-    },
-    {
-      "path": "images/train/bird/a620d0b800626dae18c92fbc38151d7dde1af28178f062b0c13bfad1cc528a21.jpg",
-      "label": "bird",
-      "split": "train",
-      "source": "openverse",
-      "source_url": "https://www.flickr.com/photos/137294100@N08/51343139244",
-      "license": "CC-BY-2.0",
-      "attribution": "\"Sunrise Birds\" by radkuch.13 is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.",
-      "checksum": {
-        "algorithm": "sha256",
-        "value": "a620d0b800626dae18c92fbc38151d7dde1af28178f062b0c13bfad1cc528a21"
-      },
-      "width": 1024,
-      "height": 576
     },
     {
       "path": "images/train/bird/a7cd3803ec0a9994e45dae28e24caf3a80cdb94b02231e08f6f8b5a8f81e0991.jpg",
@@ -789,21 +811,6 @@
       "height": 1024
     },
     {
-      "path": "images/train/bird/f4bd9efeb19daccc15126d65cfaef3b944bf4bbbaee9a69ab22fe40c355321d8.jpg",
-      "label": "bird",
-      "split": "train",
-      "source": "openverse",
-      "source_url": "https://www.flickr.com/photos/124790945@N06/48017895862",
-      "license": "CC-BY-2.0",
-      "attribution": "\"Myna (Common myna) bird on the tree, Thailand\" by Phuketian.S is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.",
-      "checksum": {
-        "algorithm": "sha256",
-        "value": "f4bd9efeb19daccc15126d65cfaef3b944bf4bbbaee9a69ab22fe40c355321d8"
-      },
-      "width": 1024,
-      "height": 683
-    },
-    {
       "path": "images/train/bird/f56074db00984f69c5c15a5466984a93fe29e8bc82111a615427e97772252264.jpg",
       "label": "bird",
       "split": "train",
@@ -847,21 +854,6 @@
       },
       "width": 868,
       "height": 1024
-    },
-    {
-      "path": "images/val/bird/062b3abe29db6cd77e8aacfc71e749a1754059cb2d54b1272e5155dd06eeb140.jpg",
-      "label": "bird",
-      "split": "val",
-      "source": "openverse",
-      "source_url": "https://www.flickr.com/photos/48268815@N02/51926330701",
-      "license": "CC-BY-2.0",
-      "attribution": "\"Bird watching at Discovery Park\" by Seattle Parks & Recreation is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.",
-      "checksum": {
-        "algorithm": "sha256",
-        "value": "062b3abe29db6cd77e8aacfc71e749a1754059cb2d54b1272e5155dd06eeb140"
-      },
-      "width": 1024,
-      "height": 683
     },
     {
       "path": "images/val/bird/2bca0c73a8da2959f6a4993beaa45119057a398a954b62c08333b22c93611e5a.jpg",
@@ -954,6 +946,21 @@
       "height": 683
     },
     {
+      "path": "images/val/bird/a620d0b800626dae18c92fbc38151d7dde1af28178f062b0c13bfad1cc528a21.jpg",
+      "label": "bird",
+      "split": "val",
+      "source": "openverse",
+      "source_url": "https://www.flickr.com/photos/137294100@N08/51343139244",
+      "license": "CC-BY-2.0",
+      "attribution": "\"Sunrise Birds\" by radkuch.13 is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.",
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "a620d0b800626dae18c92fbc38151d7dde1af28178f062b0c13bfad1cc528a21"
+      },
+      "width": 1024,
+      "height": 576
+    },
+    {
       "path": "images/val/bird/b4c40327329df44cdd28005e48b843726a7878130cbf334a039bc9052df7ecb6.jpg",
       "label": "bird",
       "split": "val",
@@ -999,21 +1006,6 @@
       "height": 683
     },
     {
-      "path": "images/val/bird/d95c209e876add1a76405b0aba0d45c40eec414a26537282d4b5f52c41784396.jpg",
-      "label": "bird",
-      "split": "val",
-      "source": "openverse",
-      "source_url": "https://www.flickr.com/photos/153584064@N07/51927621686",
-      "license": "CC-BY-2.0",
-      "attribution": "\"Brown Speckled Bird (1743-1751) print in high resolution by George Edwards. Original from The National Gallery of Art. Digitally enhanced by rawpixel.\" by Free Public Domain Illustrations by rawpixel is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.",
-      "checksum": {
-        "algorithm": "sha256",
-        "value": "d95c209e876add1a76405b0aba0d45c40eec414a26537282d4b5f52c41784396"
-      },
-      "width": 820,
-      "height": 1024
-    },
-    {
       "path": "images/val/bird/ee43c14aa00b9c8fd93a87fbb76aa5dd4299a9a8b0d3701cb7aea7578f03be74.jpg",
       "label": "bird",
       "split": "val",
@@ -1024,6 +1016,21 @@
       "checksum": {
         "algorithm": "sha256",
         "value": "ee43c14aa00b9c8fd93a87fbb76aa5dd4299a9a8b0d3701cb7aea7578f03be74"
+      },
+      "width": 1024,
+      "height": 683
+    },
+    {
+      "path": "images/val/bird/f4bd9efeb19daccc15126d65cfaef3b944bf4bbbaee9a69ab22fe40c355321d8.jpg",
+      "label": "bird",
+      "split": "val",
+      "source": "openverse",
+      "source_url": "https://www.flickr.com/photos/124790945@N06/48017895862",
+      "license": "CC-BY-2.0",
+      "attribution": "\"Myna (Common myna) bird on the tree, Thailand\" by Phuketian.S is licensed under CC BY 2.0. To view a copy of this license, visit https://creativecommons.org/licenses/by/2.0/.",
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "f4bd9efeb19daccc15126d65cfaef3b944bf4bbbaee9a69ab22fe40c355321d8"
       },
       "width": 1024,
       "height": 683
@@ -2744,7 +2751,7 @@
       "split": "val",
       "source": "wikimedia_commons",
       "source_url": "https://commons.wikimedia.org/wiki/File:230705_NVWG_PORTLAND_0310_(53025872325).jpg",
-      "license": "CC0-1.0",
+      "license": "PDM-1.0",
       "attribution": "U.S. Department of Veterans Affairs",
       "checksum": {
         "algorithm": "sha256",

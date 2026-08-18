@@ -467,38 +467,31 @@ problem, not a reason to refuse to run.
 
 ## Results from the delivered run
 
-`docker compose up` against a clean database, 2026-08-17. Run
-`48f4d178-7eed-4154-a1fc-94645095148b`, exit code 0, `status=SUCCESS`, 90 seconds.
+`make up` against a clean database and an empty image store, 2026-08-18. Run
+`a1a37617-a448-4a97-ac62-c5535602a163`, exit code 0, `status=SUCCESS`, 268
+seconds, `git_commit=01ae062-dirty`.
 
-> **Why the committed manifest names a different run.** The figures in this
-> section are from the clean-database run above. The `manifest.json` in this
-> repository is from a later verification run,
-> `fb280a06-8d57-427d-b310-878050b1d32b` — the last of several, because the
-> manifest was regenerated after every change that could conceivably have
-> affected it. Different run, identical output, and the repository's own
-> history is the evidence: every commit that touched the manifest carries a
-> different `run_id` and the same `dataset_fingerprint`.
+> **Why `-dirty`, and why the manifest names a different run.** The commit id is
+> resolved with `git describe --dirty`, and the tree was dirty for an honest
+> reason: forcing a clean re-collection means deleting the previous
+> `data/output`, which is tracked. The label says so rather than naming a commit
+> whose tree is not what ran.
 >
-> ```bash
-> git log --format=%h -- data/output/manifest.json \
->   | xargs -I{} git show {}:data/output/manifest.json \
->   | grep -E '"(run_id|dataset_fingerprint)"'
-> ```
->
-> Six runs, six run ids, one fingerprint: `9876e8c83245194b`. That is the
-> reproducibility claim being demonstrated rather than asserted — see
-> [Reproducibility](#reproducibility) for where the guarantee stops.
+> The committed `manifest.json` is from `251d6fbb-…`, the idempotent re-run
+> quoted at the end of this section — same fingerprint, same 180 images, so the
+> artefact describes the same dataset the figures below describe. That is the
+> reproducibility claim demonstrated rather than asserted.
 
 ```
-ingest      fetched=321   openverse=270   wikimedia_commons=51   sources_empty=0
-download    downloaded=319   failed=2
-validate    validated=312    rejected=7
-dedupe      unique=312
-normalize   normalised=312
-select      selected=180     trimmed_over_target=132
+ingest      fetched=322   openverse=270   wikimedia_commons=52   sources_empty=0
+download    downloaded=320   failed=2
+validate    validated=314    rejected=6
+dedupe      unique=314
+normalize   normalised=314
+select      selected=180     trimmed_over_target=134
 persist     inserted=180     already_known=0    conflicted=0
 split       train=144        val=36
-export      180 records      fingerprint=9876e8c83245194b
+export      180 records      pruned=0      fingerprint=3c34b24dc3c73f22
 ```
 
 **Dataset composition** — 60 per class, exactly the brief's 40-60 band:
@@ -510,34 +503,44 @@ export      180 records      fingerprint=9876e8c83245194b
 | dog | 48 | 12 | 60 | 80.0 |
 
 Stratification is exact — the ratio holds *inside* each class rather than only
-in aggregate.
+in aggregate. No checksum appears under two splits: the exported tree and the
+manifest describe the same 180 files, which `tests/test_export.py` asserts and
+which is checkable on the delivered artefacts in one command.
 
 **Sources** — both required collection methods contributed:
 
 | source | method | images |
 |---|---|---|
-| Openverse | public API | 156 (bird 60, cat 49, dog 47) |
-| Wikimedia Commons | HTML scraping | 24 (cat 11, dog 13) |
+| Openverse | public API | 154 (bird 58, cat 49, dog 47) |
+| Wikimedia Commons | HTML scraping | 26 (bird 2, cat 11, dog 13) |
 
 Selection is source-blind — it ranks on the content hash — so the scraped source
-survives the trim in proportion to what it contributed. Commons supplements two
-of the three classes; the brief asks for at least one.
+survives the trim in proportion to what it contributed. Commons reaches all
+three classes here; the brief asks for at least one. Bird contributes only two
+because `Category:Birds` is a container category whose files live in
+subcategories, and the scraper descends exactly one level.
 
 **Licences** — every image is usable for commercial model training:
 
 ```
-CC-BY-2.0    90     CC-BY-SA-2.0   44     PDM-1.0    21
-CC-BY-SA-4.0 14     CC0-1.0         7     CC-BY-4.0   3     CC-BY-3.0  1
+CC-BY-2.0    88     CC-BY-SA-2.0   44     PDM-1.0      22
+CC-BY-SA-4.0 14     CC0-1.0         6     CC-BY-4.0     3
+CC-BY-SA-3.0  2     CC-BY-3.0       1
 ```
 
-Zero NC and zero ND, by construction — see the licence policy above.
+Zero NC and zero ND — now by construction rather than by luck, since the gate
+that enforces it runs over both sources. Every `license` also agrees with its
+`license_url`, which was not true of the previous export: four rows read
+`CC0-1.0` beside a `by-sa/4.0` deed URL taken from the Commons page footer. Both
+the parsing defect and the check that catches it are described under
+[Handling messy data](#handling-messy-data).
 
 **What was rejected, and why**
 
 | reason | n | what it was |
 |---|---|---|
-| `select/OVER_TARGET` | 132 | valid images beyond the 60-per-class target — recorded, not silently dropped |
-| `validate/UNSUPPORTED_FORMAT` | 7 | vector and non-photographic formats served from Commons category listings |
+| `select/OVER_TARGET` | 134 | valid images beyond the 60-per-class target — recorded, not silently dropped |
+| `validate/UNSUPPORTED_FORMAT` | 6 | vector and non-photographic formats served from Commons category listings |
 | `download/TOO_LARGE` | 2 | files above the 20 MB streaming cap |
 
 Every rejection is a queryable row in `rejections`, not a log line — and
@@ -546,32 +549,32 @@ Every rejection is a queryable row in `rejections`, not a log line — and
 ```
  run      | fetched | kept | rejected | trimmed | rejection_rate_pct
 ----------+---------+------+----------+---------+--------------------
- 48f4d178 |     321 |  180 |        9 |     132 |                2.8
- 2ce3e5c7 |       0 |    0 |        0 |       0 |
+ a1a37617 |     322 |  180 |        8 |     134 |                2.5
+ 251d6fbb |       0 |    0 |        0 |       0 |
 ```
 
-A **2.8% defect rate** against live sources. `OVER_TARGET` is a capacity
+A **2.5% defect rate** against live sources. `OVER_TARGET` is a capacity
 decision, not a fault, so it is counted separately: folding it into the
 rejection rate would put a perfectly healthy run at 44% and destroy the one
 number this view exists to make comparable across runs.
 
 **The second run, immediately after.** Run
-`2ce3e5c7-86c0-4e16-a213-0efc6be243cc`, exit code 0, **one second**:
+`251d6fbb-3bed-485c-9362-00206def7c81`, exit code 0, **two seconds**:
 
 ```
 ingest      fetched=0   classes_at_target=6
 persist     inserted=0  already_known=0
 split       changed=0   eligible=180
-export      180 records  fingerprint=9876e8c83245194b
+export      180 records  pruned=0   fingerprint=3c34b24dc3c73f22
 ```
 
 Zero API calls, zero bytes over the network, zero rows written, not one image
-moved between train and val — and the identical fingerprint proves the exported
-dataset is the same dataset, not merely a similar one. `classes_at_target=6` is
-three classes × two sources that were never asked for anything, because nothing
-was needed.
+moved between train and val, and nothing pruned from the exported tree — the
+identical fingerprint proves the exported dataset is the same dataset, not
+merely a similar one. `classes_at_target=6` is three classes x two sources that
+were never asked for anything, because nothing was needed.
 
-**On near-duplicate detection.** The pHash stage ran over all 312 candidates and
+**On near-duplicate detection.** The pHash stage ran over all 314 candidates and
 found **none** within Hamming distance 5. That is an honest result, not a
 demonstration: this particular collection happens to contain no re-encoded or
 resized copies. The mechanism is implemented and tested — `tests/test_dedupe.py`
@@ -775,31 +778,40 @@ Currently guaranteed:
   dataset is identical — same images, same classes, same sides of the train/val
   line. Selection and splitting are both derived from image content, with no
   seed and no ordering dependency, so nothing about the execution — thread
-  scheduling, row order, the machine — can change the result. Three runs on
-  2026-08-17 confirmed it: a clean database, an immediate re-run, and a full
-  re-collection with both the database and the image store wiped, all reporting
-
-  ```
-  fingerprint=9876e8c83245194b
-  ```
-
-  **What it cannot guarantee:** that the sources offer the same candidates on a
-  different day. A clean re-collection on 2026-08-18 fetched 322 candidates
-  instead of 321 — Openverse had indexed new images overnight — and produced a
-  different, equally valid dataset:
+  scheduling, row order, the machine — can change the result. Confirmed on
+  2026-08-18 by three runs that had every reason to disagree and did not: a
+  clean re-collection with the database and image store wiped, an immediate
+  re-run against the populated database, and a run from a fresh `git clone` on
+  the same machine, all reporting
 
   ```
   fingerprint=3c34b24dc3c73f22
   ```
 
-  That is the live web moving, not the pipeline wobbling, and no amount of
-  determinism in this repository can hold the internet still. What the
-  fingerprint buys is that the difference is *visible in one line* instead of
-  being discovered months later by a confused colleague: two runs that disagree
-  say immediately that the input changed, while `config_snapshot` and
-  `git_commit` on each run say whether the code did. Pinning a dataset against
-  upstream drift is precisely the job DVC exists for — the upgrade path noted
-  below, and the reason it is an upgrade rather than something this replaces.
+  A fourth data point, and the more interesting one: this fingerprint is
+  unchanged from the run made *before* the licence-parsing fixes landed. That
+  is the correct outcome and worth stating, because it is checkable — those
+  defects corrupted the licence *metadata* on four rows, not which images were
+  selected or where they landed, so the dataset's identity should not have
+  moved, and it did not.
+
+  **What it cannot guarantee:** that the sources offer the same candidates on a
+  different day. The runs of 2026-08-17 fetched 321 candidates and produced
+
+  ```
+  fingerprint=9876e8c83245194b
+  ```
+
+  while 2026-08-18 fetched 322 — Openverse had indexed new images overnight —
+  and produced a different, equally valid dataset. That is the live web moving,
+  not the pipeline wobbling, and no amount of determinism in this repository can
+  hold the internet still. What the fingerprint buys is that the difference is
+  *visible in one line* instead of being discovered months later by a confused
+  colleague: two runs that disagree say immediately that the input changed,
+  while `config_snapshot` and `git_commit` on each run say whether the code did.
+  Pinning a dataset against upstream drift is precisely the job DVC exists for —
+  the upgrade path noted below, and the reason it is an upgrade rather than
+  something this replaces.
 - **`config_snapshot`** and `git_commit` stored per run, so any dataset can be
   traced back to the exact settings and code that produced it. The commit id is
   resolved on the host and passed in (`make up`), because the built image
