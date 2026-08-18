@@ -99,14 +99,6 @@ That is not decoration. It is what makes each stage unit-testable in isolation,
 and it means replacing the runner with an Airflow DAG later is a change to one
 file rather than a rewrite: each `_stage_*` method is already shaped like a task.
 
-Every stage has the same shape — `(records, settings) -> (kept, rejections,
-metrics)` — and none of them import the database or know what runs before or
-after. The runner is the only module that knows the order.
-
-That is not decoration. It is what makes each stage unit-testable in isolation,
-and it means replacing the runner with an Airflow DAG later is a change to one
-file rather than a rewrite: each `_stage_*` method is already shaped like a task.
-
 ---
 
 ## What each module does
@@ -141,11 +133,6 @@ src/
 │
 └── cli.py               argument parsing and reporting only
 ```
-
-**The one rule worth stating explicitly:** no module outside `db/` writes SQL,
-and no module inside `pipeline/` touches the database. A reviewer can audit the
-entire data-access surface by reading one file, and the pipeline stages can be
-tested without Postgres running.
 
 **The one rule worth stating explicitly:** no module outside `db/` writes SQL,
 and no module inside `pipeline/` touches the database. A reviewer can audit the
@@ -200,10 +187,6 @@ key — while the URL index guards cost. The assumption it trades on is that a U
 still serves the bytes it served last time: true of both sources here (immutable
 asset URLs), not true of the web in general, so `--refetch` forces the download
 and a conditional `If-None-Match` is the stricter version.
-
-Verified end to end in `tests/test_integration.py`, which runs the real pipeline
-twice and asserts row count unchanged, `inserted == 0`, and an identical dataset
-fingerprint — and confirmed against the live sources, below.
 
 Verified end to end in `tests/test_integration.py`, which runs the real pipeline
 twice and asserts row count unchanged, `inserted == 0`, and an identical dataset
@@ -350,24 +333,10 @@ This means the `path` field in `manifest.json` resolves after a run, not after a
 clone. Documented rather than papered over: a manifest that pointed at a
 committed subset would describe a dataset that does not exist.
 
-**Two licences, and they are not the same one.** The code is MIT
-([`LICENSE`](LICENSE)). The images are not: each one keeps the licence its
-photographer chose, recorded per image in the manifest and credited in
-`ATTRIBUTIONS.txt`. [`NOTICE`](NOTICE) says which file to look in for what.
-
 `manifest.json` carries `schema_version`, `dataset_fingerprint`, `run_id`,
 per-class/split counts, a licence breakdown, the producing configuration
 (secrets stripped), and one entry per image with a relative path and checksum.
 Paths are relative so the folder can be copied anywhere and still resolve.
-
-**What is in the repository and what is not.** The parquet, the CSV, the
-manifest and the attributions are committed — they are the deliverable, and they
-describe all 180 images. The 180 image *files* are not: at ~180 MB they would
-make the clone hostile, and `make up` regenerates them exactly. So that the data
-can still be eyeballed without running anything,
-`data/output/sample_images/` holds 24 real photographs, four per class and
-split, chosen deterministically by `scripts/make_sample.py`. This means the
-`path` field in `manifest.json` resolves after a run, not after a clone.
 
 **Two licences, and they are not the same one.** The code is MIT
 ([`LICENSE`](LICENSE)). The images are not: each one keeps the licence its
