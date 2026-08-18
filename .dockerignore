@@ -1,0 +1,39 @@
+# =============================================================================
+#  Build context exclusions.
+#
+#  Everything here is sent to the Docker daemon on every build, and `./data` is
+#  where the pipeline puts ~180 MB of images. Without this file the *second*
+#  `docker compose up --build` — the one a reviewer runs after a first run has
+#  already populated ./data — uploads the entire dataset as build context
+#  before Docker even starts reading the Dockerfile. Nothing here is copied
+#  into the image; excluding it only makes the build fast and predictable.
+# =============================================================================
+
+# The data volume: produced by the pipeline, bind-mounted at runtime, never
+# baked into the image.
+data/
+
+# Local environment. Never in an image; the container gets its configuration
+# from compose at run time.
+.env
+
+# VCS and CI metadata.
+.git/
+.github/
+.gitignore
+.gitattributes
+
+# Python noise.
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Documentation is not needed to run the pipeline.
+README.md
+LICENSE
+Makefile
