@@ -404,9 +404,38 @@ and the views, ending in `ROLLBACK` so it leaves no trace.
 
 **Twenty-two defects were found**, nine by testing and by running against the
 real sources, thirteen by reading — my own documentation against my own code,
-and adversarial reviews looking for claims the code did not support. Each one is
-recorded with its cause and the method that found it in
-**[DEFECTS.md](DEFECTS.md)**. Which method found which is the interesting part.
+and adversarial reviews looking for claims the code did not support. Which method
+found which is the interesting part, and it is the part a green test suite cannot
+tell you. Every one, with its cause, is in **[DEFECTS.md](DEFECTS.md)**.
+
+The five worth reading if you only read five:
+
+- **The scraper obeyed a `robots.txt` that forbade nothing.**
+  `RobotFileParser.read()` fetches with `User-Agent: Python-urllib/3.x`, Wikimedia
+  answers **403**, and the standard library silently converts a 403 into
+  `disallow_all`. The crawler then politely refused to fetch a single page from a
+  site that had never objected — and it looked exactly like correct
+  robots-compliance, which is why it survived review.
+- **The export reintroduced train/val leakage at the last step.** Splitting runs
+  over the whole stored dataset, so an image can legitimately move from train to
+  val as the dataset grows — and `_copy_images` only ever added. The same
+  photograph then existed under both. The manifest is generated from the database
+  and stayed correct, which is what hid it: `ImageFolder` walks directories, not
+  manifests.
+- **The thread pool was serialised by its own rate limiter.** `_HostThrottle` slept
+  while holding one global lock, so eight download workers behaved exactly like
+  one, and a slow image CDN also blocked requests to Commons, which shares nothing
+  with it. Invisible to any functional test — the code was correct, only slow.
+- **The licence parser manufactured `CC-BY-4.0` out of ordinary English.** A
+  `findall(r"\b(by|nc|nd|sa)\b")` across the raw string turned `All rights
+  reserved. Photo by Jane Doe` into a Creative Commons grant, so an
+  all-rights-reserved image would have been relabelled as the most permissive
+  licence the dataset accepts and shipped as training data.
+- **A test reddened CI once every sixteen runs.** It asserted that the second
+  backoff delay exceeds the first — comparing two *jittered* draws, whose bands
+  overlap by construction, so a correct implementation lost that comparison
+  **6.3%** of the time. Measured over 200,000 simulated draws. A test that fails at
+  random teaches everyone to re-run the job rather than read it.
 
 ---
 
