@@ -397,7 +397,7 @@ make smoke          # quick run, 10 images per class
 make status         # recent runs + current dataset composition
 make psql           # psql shell against the pipeline database
 make verify-schema  # 12 assertions against the live schema, then rolls back
-make test           # 160 tests in Docker — no local Python needed
+make test           # 161 tests in Docker — no local Python needed
 make clean          # drop the volume and all outputs — start from nothing
 ```
 
@@ -535,18 +535,42 @@ that enforces it runs over both sources. Every `license` also agrees with its
 the parsing defect and the check that catches it are described under
 [Handling messy data](#handling-messy-data).
 
-**Attribution** — every credit line names a person or an account, which also was
-not true of the previous export: two Commons rows credited a paragraph of
-description rather than an author, one of them cut mid-word at 500 characters.
-Checkable on the delivered CSV: no attribution exceeds 200 characters and none
-contains a VIAF or ISNI identifier.
+**Attribution** — and here the two sources are treated differently on purpose,
+because the same word means different things on each.
+
+*Openverse* returns a ready-made credit line: `"Title" by Author is licensed
+under CC BY 2.0. To view a copy of this license, visit https://…`. That is the
+form Creative Commons recommends, licence sentence and deed URL included, and it
+is passed through **unchanged**. Twenty of the 154 run past 200 characters, the
+longest at 351 — trimming them would damage the credit they exist to preserve.
+
+*Commons* has no such field. What the scraper reads is a table cell, and a cell
+can contain anything the uploader put there, which is why that side is cleaned
+and capped at 200 characters. Two rows in the previous export credited a
+paragraph of description rather than an author, one cut mid-word at 500
+characters. What is checkable on the delivered CSV, and what those defects would
+now fail:
+
+```bash
+python -c "import csv; rows=[r for r in csv.DictReader(open('data/output/dataset.csv',encoding='utf-8')) if r['source']=='wikimedia_commons']; print(max(len(r['attribution']) for r in rows))"
+# 198 — every scraped credit is within the cap, and none carries a VIAF or ISNI identifier
+```
+
+One scraped credit is a list rather than a name: the montage below has several
+photographers, its Commons page says so, and the scraper reports what the page
+says. A credit line that names four people because four people are owed credit
+is correct; it only looks wrong next to a sentence promising one name each,
+which is why that sentence is not made here.
 
 **One honest miss.** `Bird_Diversity_2011.png` is a montage of several species,
 not a photograph of one bird, and it passed every check: it is a valid PNG of
 reasonable size and ordinary aspect ratio. Nothing cheap distinguishes a
 composite from a subject — that is what the embedding-based work under
 [what I would do with more time](#what-i-would-do-with-more-time) would buy, and
-it is worth knowing the dataset contains it.
+it is worth knowing the dataset contains it. Its attribution is the
+multi-photographer list mentioned above, for the same reason: the page is a
+montage and its author field is a list. Both are one defect — the image should
+not have been collected — and neither is an attribution bug.
 
 **What was rejected, and why**
 
@@ -616,20 +640,20 @@ tests/
 ```
 
 ```bash
-make test        # 160 tests in Docker — needs no local Python at all
+make test        # 161 tests in Docker — needs no local Python at all
 ```
 
 The suite runs in its own build stage against the compose Postgres, so nothing
 is skipped and nothing has to be installed first. That is deliberate: a test
 suite that requires the reviewer to have Python 3.12 and the right wheels is a
-test suite the reviewer does not run, and "160 tests pass" then rests on my word
+test suite the reviewer does not run, and "161 tests pass" then rests on my word
 instead of on one command.
 
 It also runs on every push — [`.github/workflows/ci.yml`](.github/workflows/ci.yml),
 the badge at the top of this file. Lint, the full suite against a real Postgres
 service (so the integration test runs rather than skipping, and `-rs` reports it
 if it ever does skip), and a build of both Docker stages. The point is not the
-green tick: it is that "160 tests pass" and "`docker compose up` builds" are
+green tick: it is that "161 tests pass" and "`docker compose up` builds" are
 verified on a clean machine that is not mine, which is the only machine whose
 verdict actually matters here.
 
@@ -652,12 +676,15 @@ and the views, ending in `ROLLBACK` so it leaves no trace. Every assertion is a
 *delta* against a baseline taken at the start, so it can be run against the live
 database after a real run — which is exactly when anyone will reach for it.
 
-Eighteen defects were found. Nine came from testing and from running against
+Nineteen defects were found. Nine came from testing and from running against
 the real sources; the rest came from reading — my own documentation against my
-own code, and then two adversarial reviews that went looking specifically for
-claims the code did not support. Both kinds are listed, because which method
-found which is the interesting part: the first nine were invisible to reading,
-and the last nine were invisible to a green test suite.
+own code, and then adversarial reviews that went looking specifically for claims
+the code did not support. Both kinds are listed, because which method found
+which is the interesting part: the first nine were invisible to reading, and the
+last ten were invisible to a green test suite. The final one was a claim I made
+about a fix, checked against part of the data and written about all of it, which
+is the same mistake one level up — worth recording precisely because it happened
+while correcting the others.
 
 1. **An image was its own near-duplicate on re-run.** The pHash index is seeded
    from the database, which already contains every image about to be
@@ -795,7 +822,17 @@ and the last nine were invisible to a green test suite.
    carried a rendered `{{Creator}}` block complete with VIAF and ISNI numbers.
    Both shipped. The selector now matches the label text, and the value is
    reduced to a credit line rather than a catalogue record.
-18. **Three documentation counts had drifted.** The CI workflow still said
+18. **A claim was checked on part of the data and written about all of it.**
+   "No attribution exceeds 200 characters", said of the delivered CSV, with the
+   reader explicitly invited to verify it. Twenty rows do; the longest is 351.
+   The 200-character cap is real but applies only to the cell scraped from
+   Commons — and the check that produced the sentence had filtered to Commons
+   rows without the sentence saying so. Openverse attributions are the API's
+   own recommended credit line, licence sentence and deed URL included, and
+   passing them through unchanged is correct: trimming them would damage the
+   credit they exist to preserve. Two sentences now say which source they are
+   about, and the command in the README is one that passes.
+19. **Three documentation counts had drifted.** The CI workflow still said
    "103 tests", the requirement table said 15 failure modes against a table of
    16, and a config comment pointed at README text that says the opposite of
    what the comment claims. Each is trivial; together they are the thing this

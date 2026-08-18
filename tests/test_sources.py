@@ -729,3 +729,53 @@ def test_an_empty_author_cell_yields_none_rather_than_whitespace(source_settings
 
     assert W._clean_author("   ") is None
     assert W._clean_author("VIAF : 66195543") is None
+
+
+FILE_PAGE_MONTAGE = f"""
+<html><body>
+  <div class="fullImageLink">
+    <a href="//upload.wikimedia.org/wikipedia/commons/8/88/Cat_eight.png"><img src="x"></a>
+  </div>
+  <div id="mw-content-text">
+    <table class="fileinfotpl-type-information">
+      <tr><td class="fileinfo-paramfield">Author</td>
+          <td>Southern_cassowary.jpg : Frank Wouters of Antwerp, Belgium
+              Head_Peacock.jpg : http://commons.wikimedia.org/wiki/User:Jkather
+              Kiwi_hg.jpg : Hannes Grobe Opisthocomus_hoazin.jpg : Kate from UK
+              Toco_toucan.jpg : Bernard DUPONT from FRANCE</td></tr>
+    </table>
+    <div class="licensetpl">
+      <span class="licensetpl_short">CC BY-SA 3.0</span>
+      <a href="https://creativecommons.org/licenses/by-sa/3.0/">deed</a>
+    </div>
+  </div>
+  {MW_FOOTER}
+</body></html>
+"""
+
+
+def test_a_file_with_several_authors_keeps_all_of_them(source_settings):
+    """
+    A montage's author field is a list of photographers, and every one of them
+    is owed credit. Reading the page faithfully is correct here — the defect
+    with such a file is that it was collected at all, since it is not a
+    photograph of one subject, and that is a content question no cheap check
+    answers.
+
+    What this pins is that the *cleaning* does not make things worse: the list
+    survives, capped and cut on a word boundary rather than mid-word, which is
+    what the previous 500-character truncation did.
+    """
+    client = FakeClient(
+        pages={
+            f"{BASE}/wiki/Category:Cats": CATEGORY_HTML,
+            f"{BASE}/wiki/File:Cat_one.jpg": FILE_PAGE_MONTAGE,
+        }
+    )
+    records = list(WikimediaCommonsSource(client, source_settings).fetch("cat", 5))
+
+    attribution = records[0].attribution
+    assert attribution.startswith("Southern_cassowary.jpg : Frank Wouters")
+    assert len(attribution) <= 201
+    assert attribution.endswith("…"), "a truncated credit must say that it was truncated"
+    assert not attribution[:-1].endswith(" "), "cut on a word, not on a space"
