@@ -1,6 +1,19 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
+# Run lineage, resolved on the host and handed to the container.
+#
+# The image carries no .git directory — copying one into a production image
+# would be wrong — so the application cannot resolve this itself, and
+# `pipeline_runs.git_commit` would be NULL on the documented path. Resolving it
+# here and exporting it means every run records the code that produced it.
+#
+# `--dirty` matters more than it looks: a dataset produced from uncommitted
+# edits is not reproducible from the commit id alone, and the row should say so
+# rather than quietly claim a commit that never contained the code that ran.
+GIT_COMMIT := $(shell git describe --always --dirty --abbrev=7 2>/dev/null)
+export GIT_COMMIT
+
 .PHONY: help up run smoke down clean logs psql status test test-local lint verify-schema install
 
 help:  ## Show this help
@@ -47,5 +60,5 @@ install:  ## Install dependencies locally (only needed for `make test-local`)
 test-local:  ## Run the suite on the host — requires Python 3.12+ and `make install`
 	pytest -q tests/
 
-lint:  ## Lint
-	ruff check src/ tests/
+lint:  ## Lint (the same command CI runs)
+	ruff check src tests scripts

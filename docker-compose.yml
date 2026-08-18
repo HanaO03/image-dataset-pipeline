@@ -75,6 +75,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-pipeline}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pipeline}
       PATH_DATA_DIR: /data
+      # Run lineage. The built image deliberately carries no .git directory, so
+      # the in-process `git rev-parse` fallback cannot work there — without this
+      # line `pipeline_runs.git_commit` would be NULL on exactly the path the
+      # README tells people to use, and "which code produced this dataset?"
+      # would have no answer. `make up` fills it in; a bare `docker compose up`
+      # leaves it empty rather than failing, which is the right trade.
+      GIT_COMMIT: ${GIT_COMMIT:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_JSON: ${LOG_JSON:-true}
       SOURCE_TARGET_PER_CLASS: ${SOURCE_TARGET_PER_CLASS:-60}
@@ -98,7 +105,7 @@ services:
   #
   #     docker compose --profile test run --rm tests     (or: make test)
   #
-  # Running the suite here rather than on the host is what makes "94 tests pass"
+  # Running the suite here rather than on the host is what makes "103 tests pass"
   # a claim the reviewer can check in one command instead of a claim that
   # depends on them having Python 3.12 and the right wheels.
   tests:
