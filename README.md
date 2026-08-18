@@ -1,5 +1,7 @@
 # Image Dataset Ingestion Pipeline
 
+[![CI](https://github.com/HanaO03/image-dataset-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/HanaO03/image-dataset-pipeline/actions/workflows/ci.yml)
+
 Collects images of **cat / dog / bird** from a public API and by scraping a public
 web page, validates and deduplicates them, stores the records and full run
 metadata in PostgreSQL, and exports an ML-ready dataset to `/data/output`.
@@ -16,8 +18,35 @@ see [Idempotency](#idempotency).
 
 ---
 
+## Where each requirement lives
+
+The brief, mapped to the code that answers it. Everything below is implemented;
+this table is here so that can be checked in a minute rather than taken on
+trust.
+
+| Requirement | Implemented in | Detail |
+|---|---|---|
+| **A1** API collection, 40–60 per class | `src/sources/openverse.py` | 60 per class, delivered — [Results](#results-from-the-delivered-run) |
+| **A2** Scraping a real HTML page | `src/sources/wikimedia.py` | Commons category → file page → licence; the API is deliberately *not* used |
+| **A3** Messy sources handled, not sanded away | `src/pipeline/validate.py`, `rejections` table | [12 failure modes, each with a reason code and a test](#handling-messy-data) |
+| **B** Exact deduplication | `sql/schema.sql` — `images.sha256 UNIQUE` | [Enforced by the database, not by Python](#database-design) |
+| **B** Near-duplicate detection *(bonus)* | `src/pipeline/dedupe.py` | pHash, Hamming ≤ 5 — [the one stretch goal taken](#scope-one-stretch-goal-taken-deliberately) |
+| **B** File validation | `src/pipeline/validate.py` | [Decode twice; the `verify()` trap](#handling-messy-data) |
+| **B** Normalised metadata schema | `src/pipeline/normalize.py`, `src/models.py` | One schema across both sources; licences → SPDX |
+| **B** Postgres: records **and** run metadata | `sql/schema.sql` | [5 tables + 2 views](#database-design) |
+| **C** Stratified train/val split | `src/pipeline/split.py` | [Content-derived, not a seeded shuffle](#key-decisions-and-why) |
+| **C** Export to `/data/output` + manifest | `src/pipeline/export.py` | [`dataset.parquet` · `dataset.csv` · `manifest.json`](#output) |
+| **C** Reproducibility note | — | [Reproducibility](#reproducibility), including where the guarantee stops |
+| **D** Dockerfile | `Dockerfile` | Multi-stage, non-root, `tini` |
+| **D** `docker compose up` end to end | `docker-compose.yml` | The quickstart above; exit codes `0` / `1` / `2` |
+| Database scripts | `sql/schema.sql`, `sql/verify_schema.sql` | DDL + [12 assertions against the live schema](#testing) |
+| Sample output committed | `data/output/` | Full manifest/CSV/parquet + [24 real images](#output) |
+
+---
+
 ## Contents
 
+- [Where each requirement lives](#where-each-requirement-lives)
 - [Architecture](#architecture)
 - [What each module does](#what-each-module-does)
 - [Database design](#database-design)
@@ -400,6 +429,25 @@ problem, not a reason to refuse to run.
 `docker compose up` against a clean database, 2026-08-17. Run
 `48f4d178-7eed-4154-a1fc-94645095148b`, exit code 0, `status=SUCCESS`, 90 seconds.
 
+> **Why the committed manifest names a different run.** The figures in this
+> section are from the clean-database run above. The `manifest.json` in this
+> repository is from a later verification run,
+> `fb280a06-8d57-427d-b310-878050b1d32b` — the last of several, because the
+> manifest was regenerated after every change that could conceivably have
+> affected it. Different run, identical output, and the repository's own
+> history is the evidence: every commit that touched the manifest carries a
+> different `run_id` and the same `dataset_fingerprint`.
+>
+> ```bash
+> git log --format=%h -- data/output/manifest.json \
+>   | xargs -I{} git show {}:data/output/manifest.json \
+>   | grep -E '"(run_id|dataset_fingerprint)"'
+> ```
+>
+> Six runs, six run ids, one fingerprint: `9876e8c83245194b`. That is the
+> reproducibility claim being demonstrated rather than asserted — see
+> [Reproducibility](#reproducibility) for where the guarantee stops.
+
 ```
 ingest      fetched=321   openverse=270   wikimedia_commons=51   sources_empty=0
 download    downloaded=319   failed=2
@@ -517,6 +565,14 @@ is skipped and nothing has to be installed first. That is deliberate: a test
 suite that requires the reviewer to have Python 3.12 and the right wheels is a
 test suite the reviewer does not run, and "103 tests pass" then rests on my word
 instead of on one command.
+
+It also runs on every push — [`.github/workflows/ci.yml`](.github/workflows/ci.yml),
+the badge at the top of this file. Lint, the full suite against a real Postgres
+service (so the integration test runs rather than skipping, and `-rs` reports it
+if it ever does skip), and a build of both Docker stages. The point is not the
+green tick: it is that "103 tests pass" and "`docker compose up` builds" are
+verified on a clean machine that is not mine, which is the only machine whose
+verdict actually matters here.
 
 **No test touches the network.** Every messy case is constructed locally, so the
 suite is deterministic and runs in CI without credentials. Testing against a
@@ -639,7 +695,13 @@ Currently guaranteed:
   upstream drift is precisely the job DVC exists for — the upgrade path noted
   below, and the reason it is an upgrade rather than something this replaces.
 - **`config_snapshot`** and `git_commit` stored per run, so any dataset can be
-  traced back to the exact settings and code that produced it.
+  traced back to the exact settings and code that produced it. The commit id is
+  resolved on the host and passed in (`make up`), because the built image
+  deliberately carries no `.git` directory and could not resolve it itself — and
+  it is resolved with `--dirty`, so a dataset produced from uncommitted edits
+  says so instead of claiming a commit that never contained the code that ran.
+  A bare `docker compose up` leaves the column empty rather than failing;
+  `GIT_COMMIT=$(git rev-parse --short HEAD) docker compose up` fills it in.
 - **Pinned dependencies** in `requirements.txt`.
 
 To extend to full dataset versioning: `dvc add data/output` with a remote, using
