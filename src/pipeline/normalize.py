@@ -86,6 +86,50 @@ _LONGFORM_ELEMENTS = (
     (re.compile(r"share[-\s]*alike", re.I), "SA"),
 )
 
+#: The coded form, anchored to the **whole** string.
+#:
+#: This anchoring is the fix for the worst defect this module has had. The
+#: previous version ran `re.findall(r"\b(by|nc|nd|sa)\b", …)` across the raw
+#: text, which meant any English sentence containing the ordinary word "by"
+#: produced a Creative Commons licence out of nothing:
+#:
+#:     "All rights reserved. Photo by Jane Doe"  ->  CC-BY-4.0
+#:     "Photograph by Ansel Adams, 1941"         ->  CC-BY-4.0
+#:
+#: That is the exact inverse of the policy in this module's docstring: an
+#: all-rights-reserved image was not rejected, it was relabelled as the most
+#: permissive licence the dataset accepts, passed the NC/ND gate (no forbidden
+#: element was present to catch), and shipped as training data. A scraped
+#: `Author` or `Description` cell reaching this function is ordinary prose, so
+#: the input that triggers it is not hypothetical.
+#:
+#: Anchoring also confines the version to the licence token itself. Searching
+#: the whole string for the first `\d+\.\d+` read the version off whatever
+#: happened to be leftmost — `"GFDL 1.2 or CC BY-SA 3.0"` became
+#: `CC-BY-SA-1.2`, an SPDX identifier that does not exist.
+_CODED_RE = re.compile(
+    r"^(?:cc[-\s_]*)?"
+    r"(?P<elements>(?:by|nc|nd|sa)(?:[-\s_]+(?:by|nc|nd|sa))*)"
+    r"(?:[-\s_]+(?P<version>\d+\.\d+))?$",
+    re.I,
+)
+
+#: A Creative Commons marker, required before prose is read as a CC licence.
+#:
+#: Same reasoning as the anchor above, applied to the long-form branch: the word
+#: "Attribution" on its own is not a licence grant ("Attribution required, photo
+#: courtesy of the museum"), and every long-form string either source actually
+#: produces carries "Creative Commons", "CC" or a deed URL alongside it.
+_CC_MARKER_RE = re.compile(r"creative\s*commons|creativecommons\.org|\bcc\b", re.I)
+
+#: Explicit NC/ND markers, in coded and prose form.
+#:
+#: Used to stop the public-domain shortcut from swallowing a restriction — see
+#: `normalise_license`.
+_RESTRICTION_RE = re.compile(
+    r"non[-\s]*commercial|no[-\s]*deriv|\bnc\b|\bnd\b", re.I
+)
+
 _VERSION_RE = re.compile(r"(\d+\.\d+)")
 #: Default version when the source states a CC licence without one. 4.0 is the
 #: current generation; recording an explicit default beats recording nothing,
@@ -107,27 +151,60 @@ def normalise_license(raw: str | None) -> str | None:
     text = raw.strip()
     lowered = text.lower()
 
-    # Public domain / CC0 first: these have no elements or version to parse.
+    # Public domain / CC0: these have no elements or version to parse, so they
+    # are checked before element parsing — but *not* before checking for a
+    # restriction. A file page reading
+    #
+    #     "Public domain in the US only; CC BY-NC 4.0 elsewhere"
+    #
+    # is not a public-domain image, and returning PDM-1.0 for it walked the
+    # string straight past the NC/ND gate: `license_elements` returns an empty
+    # set for anything that does not begin "CC-", so `license_permits` had
+    # nothing to intersect and answered True. Jurisdiction-qualified prose of
+    # exactly this shape is common in Commons licence boxes.
+    #
+    # An ambiguous string is rejected (UNRECOGNISED_LICENSE) rather than
+    # resolved in either direction. "We could not tell" is the honest answer,
+    # and it is the safe one.
     for needle, spdx in _PUBLIC_DOMAIN.items():
         if lowered == needle or re.search(rf"\b{re.escape(needle)}\b", lowered):
+            if _RESTRICTION_RE.search(lowered):
+                log.debug("public-domain claim contradicted by a restriction",
+                          extra={"raw": text[:120]})
+                return None
             return spdx
 
-    version_match = _VERSION_RE.search(text)
-    version = version_match.group(1) if version_match else None
-
     elements: list[str] = []
+    version: str | None = None
 
-    # Coded form: "by-sa-4.0", "by-nc-nd", "BY_SA"
-    coded = re.findall(r"\b(by|nc|nd|sa)\b", lowered)
-    if coded:
-        elements = [c.upper() for c in coded]
-    else:
+    # Coded form, whole-string: "by-sa-4.0", "by-nc-nd", "BY_SA", "CC BY-SA 4.0"
+    coded_match = _CODED_RE.match(text)
+    if coded_match:
+        elements = [
+            part.upper()
+            for part in re.split(r"[-\s_]+", coded_match.group("elements"))
+            if part
+        ]
+        version = coded_match.group("version")
+    elif _CC_MARKER_RE.search(text):
+        # Long-form prose, and only when the string says it is Creative Commons.
         # Every element that appears, not the first name that matches.
-        elements = [code for pattern, code in _LONGFORM_ELEMENTS if pattern.search(text)]
+        matches = [
+            (match.start(), code)
+            for pattern, code in _LONGFORM_ELEMENTS
+            if (match := pattern.search(text))
+        ]
+        elements = [code for _, code in matches]
         # "Attribution" is implied by any CC element name in prose form, but a
         # string naming only restrictions is not a licence we can reconstruct.
         if elements and "BY" not in elements:
             elements = []
+        # Read the version from the licence name onward, not from the start of
+        # the string: "GFDL 1.2 or Creative Commons Attribution-ShareAlike 3.0"
+        # states 3.0 for the licence we are actually recording.
+        if elements:
+            version_match = _VERSION_RE.search(text, min(pos for pos, _ in matches))
+            version = version_match.group(1) if version_match else None
 
     if not elements:
         return None
