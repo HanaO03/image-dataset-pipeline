@@ -617,3 +617,115 @@ def test_the_licence_and_its_url_agree_on_every_scraped_record(source_settings):
         else:
             elements = spdx[len("CC-"):].rsplit("-", 1)[0].lower()
             assert f"/licenses/{elements}/" in url, (spdx, url)
+
+
+# =============================================================================
+#  Attribution: a credit line, not whatever the first table row said
+# =============================================================================
+#
+#  Both cases below are taken from rows that shipped in the delivered dataset.
+
+
+FILE_PAGE_DESCRIPTION_FIRST = f"""
+<html><body>
+  <div class="fullImageLink">
+    <a href="//upload.wikimedia.org/wikipedia/commons/6/66/Cat_six.jpg"><img src="x"></a>
+  </div>
+  <div id="mw-content-text">
+    <table class="fileinfotpl-type-information">
+      <tr><td class="fileinfo-paramfield">Description</td>
+          <td>Southern_cassowary.jpg : Frank Wouters of Antwerp, Belgium
+              Head_Peacock.jpg : http://commons.wikimedia.org/wiki/User:Jkather
+              Kiwi_hg.jpg : Hannes Grobe and a great many more words besides,
+              enough to run past every sensible limit for a credit line</td></tr>
+      <tr><td class="fileinfo-paramfield">Date</td><td>2011</td></tr>
+      <tr><td class="fileinfo-paramfield">Author</td><td>Snowmanradio</td></tr>
+    </table>
+    <div class="licensetpl">
+      <span class="licensetpl_short">CC BY-SA 3.0</span>
+      <a href="https://creativecommons.org/licenses/by-sa/3.0/">deed</a>
+    </div>
+  </div>
+  {MW_FOOTER}
+</body></html>
+"""
+
+FILE_PAGE_CREATOR_TEMPLATE = f"""
+<html><body>
+  <div class="fullImageLink">
+    <a href="//upload.wikimedia.org/wikipedia/commons/7/77/Cat_seven.jpg"><img src="x"></a>
+  </div>
+  <div id="mw-content-text">
+    <table class="fileinfotpl-type-information">
+      <tr><td class="fileinfo-paramfield">Author</td>
+          <td>Geoff Charles (1909–2002) Description Welsh photographer and
+              photojournalist Date of birth/death 28 January 1909 7 March 2002
+              Location of birth Brymbo Authority file : Q5534081
+              VIAF : 66195543 ISNI : 0000000044619391 QS:P170,Q5534081</td></tr>
+    </table>
+    <div class="licensetpl">
+      <span class="licensetpl_short">CC0</span>
+      <a href="https://creativecommons.org/publicdomain/zero/1.0/">deed</a>
+    </div>
+  </div>
+  {MW_FOOTER}
+</body></html>
+"""
+
+
+def test_the_author_row_is_read_not_the_first_row(source_settings):
+    """
+    `td.fileinfo-paramfield + td` takes the cell after the *first* label in the
+    table, and on a Commons information table that label is "Description". A
+    montage's component list was credited as its author, truncated mid-word at
+    500 characters, and shipped.
+    """
+    client = FakeClient(
+        pages={
+            f"{BASE}/wiki/Category:Cats": CATEGORY_HTML,
+            f"{BASE}/wiki/File:Cat_one.jpg": FILE_PAGE_DESCRIPTION_FIRST,
+        }
+    )
+    records = list(WikimediaCommonsSource(client, source_settings).fetch("cat", 5))
+
+    assert len(records) == 1
+    assert records[0].attribution == "Snowmanradio"
+
+
+def test_a_creator_template_is_reduced_to_a_credit(source_settings):
+    """
+    `{{Creator}}` renders a whole biography: dates, nationality, and a VIAF /
+    ISNI / QS authority record. All of that is true and none of it belongs in
+    an attribution line.
+    """
+    client = FakeClient(
+        pages={
+            f"{BASE}/wiki/Category:Cats": CATEGORY_HTML,
+            f"{BASE}/wiki/File:Cat_one.jpg": FILE_PAGE_CREATOR_TEMPLATE,
+        }
+    )
+    records = list(WikimediaCommonsSource(client, source_settings).fetch("cat", 5))
+
+    attribution = records[0].attribution
+    assert attribution.startswith("Geoff Charles")
+    for marker in ("VIAF", "ISNI", "QS:P", "Authority file"):
+        assert marker not in attribution
+    assert len(attribution) <= 200
+
+
+def test_no_scraped_attribution_is_truncated_mid_word(source_settings):
+    """Truncation happens on a word boundary, with an ellipsis to show it did."""
+    from src.sources.wikimedia import WikimediaCommonsSource as W
+
+    long_text = " ".join(["Photographer"] * 60)
+    cleaned = W._clean_author(long_text)
+    assert len(cleaned) <= 201
+    assert cleaned.endswith("…")
+    assert not cleaned[:-1].rstrip().endswith("Photograph")
+
+
+def test_an_empty_author_cell_yields_none_rather_than_whitespace(source_settings):
+    from src.sources.wikimedia import WikimediaCommonsSource as W
+
+    assert W._clean_author("   ") is None
+    assert W._clean_author("VIAF : 66195543") is None

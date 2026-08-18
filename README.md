@@ -40,7 +40,7 @@ trust.
 |---|---|---|
 | **A1** API collection, 40–60 per class | `src/sources/openverse.py` | 60 per class, delivered — [Results](#results-from-the-delivered-run) |
 | **A2** Scraping a real HTML page | `src/sources/wikimedia.py` | Commons category → file page → licence; the API is deliberately *not* used |
-| **A3** Messy sources handled, not sanded away | `src/pipeline/validate.py`, `rejections` table | [15 failure modes, each with a reason code and a test](#handling-messy-data) |
+| **A3** Messy sources handled, not sanded away | `src/pipeline/validate.py`, `rejections` table | [16 failure modes, each with a reason code and a test](#handling-messy-data) |
 | **B** Exact deduplication | `sql/schema.sql` — `images.sha256 UNIQUE` | [Enforced by the database, not by Python](#database-design) |
 | **B** Near-duplicate detection *(bonus)* | `src/pipeline/dedupe.py` | pHash, Hamming ≤ 5 — [the one stretch goal taken](#scope-one-stretch-goal-taken-deliberately) |
 | **B** File validation | `src/pipeline/validate.py` | [Decode twice; the `verify()` trap](#handling-messy-data) |
@@ -397,7 +397,7 @@ make smoke          # quick run, 10 images per class
 make status         # recent runs + current dataset composition
 make psql           # psql shell against the pipeline database
 make verify-schema  # 12 assertions against the live schema, then rolls back
-make test           # 155 tests in Docker — no local Python needed
+make test           # 160 tests in Docker — no local Python needed
 make clean          # drop the volume and all outputs — start from nothing
 ```
 
@@ -603,20 +603,20 @@ tests/
 ```
 
 ```bash
-make test        # 155 tests in Docker — needs no local Python at all
+make test        # 160 tests in Docker — needs no local Python at all
 ```
 
 The suite runs in its own build stage against the compose Postgres, so nothing
 is skipped and nothing has to be installed first. That is deliberate: a test
 suite that requires the reviewer to have Python 3.12 and the right wheels is a
-test suite the reviewer does not run, and "155 tests pass" then rests on my word
+test suite the reviewer does not run, and "160 tests pass" then rests on my word
 instead of on one command.
 
 It also runs on every push — [`.github/workflows/ci.yml`](.github/workflows/ci.yml),
 the badge at the top of this file. Lint, the full suite against a real Postgres
 service (so the integration test runs rather than skipping, and `-rs` reports it
 if it ever does skip), and a build of both Docker stages. The point is not the
-green tick: it is that "155 tests pass" and "`docker compose up` builds" are
+green tick: it is that "160 tests pass" and "`docker compose up` builds" are
 verified on a clean machine that is not mine, which is the only machine whose
 verdict actually matters here.
 
@@ -639,12 +639,12 @@ and the views, ending in `ROLLBACK` so it leaves no trace. Every assertion is a
 *delta* against a baseline taken at the start, so it can be run against the live
 database after a real run — which is exactly when anyone will reach for it.
 
-Fourteen defects were found. Nine came from testing and from running against
+Eighteen defects were found. Nine came from testing and from running against
 the real sources; the rest came from reading — my own documentation against my
-own code, and then an adversarial review that went looking specifically for
+own code, and then two adversarial reviews that went looking specifically for
 claims the code did not support. Both kinds are listed, because which method
 found which is the interesting part: the first nine were invisible to reading,
-and the last five were invisible to a green test suite.
+and the last nine were invisible to a green test suite.
 
 1. **An image was its own near-duplicate on re-run.** The pHash index is seeded
    from the database, which already contains every image about to be
@@ -756,6 +756,38 @@ and the last five were invisible to a green test suite.
    `--abort-on-container-exit --exit-code-from pipeline` and does return. The
    quickstart now says so — a small thing, on the most-read line in the
    repository.
+15. **A rate-limited source failed the entire run.** `RateLimitedError`
+   inherited from `RuntimeError`, and every source adapter handles a failed
+   fetch with `except requests.RequestException` — which is the correct thing
+   to write, and which this exception walked straight past. It reached the
+   runner's catch-all and marked the run `failed`. So the most ordinary
+   failure a polite scraper meets, the one the retry logic and the per-host
+   delays exist to survive, was the one thing that could kill a run outright —
+   while the messy-data table two sections up promised `429 → backoff →
+   HTTP_ERROR`. Fixed by making the exception a `requests.RequestException`,
+   which corrects every call site at once, including ones not yet written.
+   `download.py` had it right already, by catching the specific type first.
+16. **`.env` was read in Docker and ignored outside it.** `env_file` was set on
+   the root `Settings` class, which covers the root's own fields; every nested
+   group (`SourceSettings`, `DedupeSettings`, …) is a separate `BaseSettings`
+   and read `os.environ` alone. `SOURCE_TARGET_PER_CLASS=7` in `.env` produced
+   a run of 60, silently. Under compose it worked — `env_file:` there injects
+   the file as real environment variables — so the gap was invisible on the
+   documented path and visible only to someone running locally, after a README
+   that opens with `cp .env.example .env`.
+17. **Two attributions credited the wrong thing entirely.** The author fallback
+   selector took the cell after the *first* label in the Commons information
+   table, and that label is "Description". One row credited a montage's
+   component list, 42 words, truncated mid-word at 500 characters; another
+   carried a rendered `{{Creator}}` block complete with VIAF and ISNI numbers.
+   Both shipped. The selector now matches the label text, and the value is
+   reduced to a credit line rather than a catalogue record.
+18. **Three documentation counts had drifted.** The CI workflow still said
+   "103 tests", the requirement table said 15 failure modes against a table of
+   16, and a config comment pointed at README text that says the opposite of
+   what the comment claims. Each is trivial; together they are the thing this
+   project keeps having to relearn, which is why they are listed rather than
+   quietly corrected.
 
 ---
 

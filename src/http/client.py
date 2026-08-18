@@ -34,8 +34,25 @@ from ..logging_setup import get_logger
 log = get_logger(__name__)
 
 
-class RateLimitedError(RuntimeError):
-    """Retry budget exhausted against a server that kept saying 429."""
+class RateLimitedError(requests.RequestException):
+    """
+    Retry budget exhausted against a server that kept saying 429.
+
+    Deliberately a `requests.RequestException` and not a bare `RuntimeError`.
+    It was the latter, and that single word made rate limiting the one source
+    failure that could kill a run: every caller in `sources/` handles a failed
+    fetch with `except requests.RequestException`, which is the correct thing
+    to write and which this exception escaped. It then propagated to the
+    runner, which treats an unhandled exception as infrastructure failure —
+    so a source doing exactly what a rate-limited source is supposed to do
+    marked the whole run `failed`.
+
+    The error policy says data failures are recorded and the run continues.
+    Making the type match the policy fixes it everywhere at once, including
+    call sites not yet written, which is the difference between a fix and a
+    patch. `download.py` still catches it explicitly *before* the general
+    handler, because there it earns a more specific message.
+    """
 
 
 class NotAnImageError(RuntimeError):

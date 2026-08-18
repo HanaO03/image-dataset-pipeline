@@ -417,3 +417,25 @@ def test_every_request_carries_a_timeout(monkeypatch):
         client.settings.connect_timeout_seconds,
         client.settings.read_timeout_seconds,
     )
+
+
+def test_rate_limiting_is_a_request_exception_so_sources_handle_it(monkeypatch):
+    """
+    The type is the fix. Every source adapter handles a failed fetch with
+    `except requests.RequestException` — the correct thing to write — and
+    `RateLimitedError` used to inherit from `RuntimeError`, so it walked
+    straight past them, out of the adapter, past the runner's stage handling
+    and into the catch-all that marks a run `failed`.
+
+    A rate-limited source is the most ordinary failure this pipeline meets. The
+    error policy says data failures are recorded and the run continues; making
+    the exception's type match the policy is what makes that true at every call
+    site, including ones not yet written.
+    """
+    monkeypatch.setattr("src.http.client.time.sleep", _Recorder())
+    client, _ = _client_with([RetryableResponse(429)] * 2, max_retries=2)
+
+    with pytest.raises(requests.RequestException):
+        client.request("GET", "https://api.openverse.org/v1/images/")
+
+    assert issubclass(RateLimitedError, requests.RequestException)

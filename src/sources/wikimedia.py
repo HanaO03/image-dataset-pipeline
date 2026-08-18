@@ -96,6 +96,21 @@ _LICENCE_SCOPES = (
     "body",
 )
 
+#: Row labels that mean "this cell holds the author". Commons renders the
+#: information template in the page language, so the English label is not
+#: guaranteed; these are the forms seen on the categories this pipeline reads.
+_AUTHOR_LABEL_RE = re.compile(r"^\s*(author|artist|photographer|creator|autor)\b", re.I)
+
+#: Where a rendered `{{Creator}}` block stops being a credit and starts being a
+#: library catalogue record. Everything from here on is dropped.
+_AUTHORITY_TAIL_RE = re.compile(
+    r"\b(Authority\s*file|VIAF\b|ISNI\b|LCCN\b|GND\b|SUDOC\b|ULAN\b|QS:P)", re.I
+)
+
+#: An attribution is a credit line, not an abstract. Long enough for a name and
+#: an affiliation, short enough that a CSV stays readable.
+_MAX_ATTRIBUTION_CHARS = 200
+
 #: Public-domain pages often carry no licence *template* at all, only prose.
 #: These patterns are the last resort before rejecting the image outright.
 _PD_PATTERNS = (
@@ -553,14 +568,54 @@ class WikimediaCommonsSource(ImageSource):
     def _extract_author(soup: BeautifulSoup) -> str | None:
         """
         Author lives in the file-info table, whose markup has changed over the
-        years. Try the modern id, then the legacy class, then give up — a
-        missing author is not fatal, since the licence is what we must retain.
+        years. Try the modern id, then a row whose label actually reads
+        "Author", then give up — a missing author is not fatal, since the
+        licence is what we must retain.
+
+        The fallback used to be `td.fileinfo-paramfield + td`, which takes the
+        cell after the *first* label in the table. On a Commons information
+        table that label is "Description", so two rows of the delivered dataset
+        credited a photograph to a paragraph of prose — one of them 42 words of
+        montage component list, truncated mid-word at 500 characters.
+
+        Matching the label text instead is the fix, and `_clean_author` handles
+        the other half: Commons renders `{{Creator}}` as a whole biography
+        block, so the "Author" cell can legitimately contain a birth date, a
+        nationality and a VIAF/ISNI/GND authority record. An attribution line
+        is a credit, not a catalogue entry.
         """
-        node = soup.select_one("#fileinfotpl_aut ~ td") or soup.select_one("td.fileinfo-paramfield + td")
-        if node:
-            text = node.get_text(" ", strip=True)
-            return text[:500] if text else None
-        return None
+        node = soup.select_one("#fileinfotpl_aut ~ td")
+        if node is None:
+            for label in soup.select("td.fileinfo-paramfield, th.fileinfo-paramfield"):
+                if _AUTHOR_LABEL_RE.match(label.get_text(" ", strip=True)):
+                    node = label.find_next_sibling("td")
+                    break
+        if node is None:
+            return None
+
+        return WikimediaCommonsSource._clean_author(node.get_text(" ", strip=True))
+
+    @staticmethod
+    def _clean_author(text: str) -> str | None:
+        """
+        Reduce a rendered author cell to something usable as a credit line.
+
+        Drops the authority-control tail that `{{Creator}}` emits — everything
+        from the first `Authority file`/`VIAF`/`ISNI`/`QS:P` marker onwards —
+        collapses whitespace, and truncates on a word boundary rather than mid
+        word. Returns None for a cell that has nothing left, because an empty
+        credit is more honest than a misleading one: `normalize.py` then
+        records a placeholder pointing at the source page, which at least
+        resolves to the real author.
+        """
+        cleaned = _AUTHORITY_TAIL_RE.split(text, maxsplit=1)[0]
+        cleaned = re.sub(r"\s+", " ", cleaned).strip(" ·,;–—-")
+        if not cleaned:
+            return None
+        if len(cleaned) > _MAX_ATTRIBUTION_CHARS:
+            cut = cleaned[:_MAX_ATTRIBUTION_CHARS].rsplit(" ", 1)[0]
+            cleaned = f"{cut}…"
+        return cleaned
 
     # -------------------------------------------------------------------------
 

@@ -25,10 +25,35 @@ from pydantic import Field, SecretStr, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _group_config(prefix: str) -> SettingsConfigDict:
+    """
+    Config for one settings group. Every group reads `.env`, not only the root.
+
+    That is the whole point of this function existing. `env_file` was set on the
+    root `Settings` class alone, which covers the root's own fields and nothing
+    else: each group below is a separate `BaseSettings` and read `os.environ`
+    only. So `SOURCE_TARGET_PER_CLASS=7` in `.env` was silently ignored — the
+    run used 60 and said nothing.
+
+    Under compose it worked, which is exactly why it survived: `env_file:` there
+    injects the file as real environment variables, so the gap was invisible on
+    the documented path and visible only to someone running the pipeline
+    locally — after following a README that opens with `cp .env.example .env`.
+    A configuration file that is read in one environment and ignored in another,
+    with no error either way, is the worst kind of configuration bug.
+    """
+    return SettingsConfigDict(
+        env_prefix=prefix,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+
 class DatabaseSettings(BaseSettings):
     """Postgres connection. Values match the service name in docker-compose."""
 
-    model_config = SettingsConfigDict(env_prefix="POSTGRES_", extra="ignore")
+    model_config = _group_config("POSTGRES_")
 
     host: str = "postgres"
     port: int = 5432
@@ -59,7 +84,7 @@ class DatabaseSettings(BaseSettings):
 class HttpSettings(BaseSettings):
     """Outbound HTTP behaviour: politeness, resilience, and hard limits."""
 
-    model_config = SettingsConfigDict(env_prefix="HTTP_", extra="ignore")
+    model_config = _group_config("HTTP_")
 
     #: Identifies us to the sources. Wikimedia's policy explicitly requires a
     #: descriptive User-Agent with a contact; anonymous scrapers get blocked.
@@ -107,7 +132,7 @@ class ValidationSettings(BaseSettings):
     * 6.0 aspect ratio — banners, spritesheets and diagrams, not a single subject.
     """
 
-    model_config = SettingsConfigDict(env_prefix="VALIDATION_", extra="ignore")
+    model_config = _group_config("VALIDATION_")
 
     min_dimension_px: int = 64
     max_dimension_px: int = 8000
@@ -149,7 +174,7 @@ class LicenseSettings(BaseSettings):
     Set `forbidden_elements=[]` for a research dataset that will never ship.
     """
 
-    model_config = SettingsConfigDict(env_prefix="LICENSE_", extra="ignore")
+    model_config = _group_config("LICENSE_")
 
     forbidden_elements: tuple[str, ...] = ("NC", "ND")
 
@@ -175,7 +200,7 @@ class DedupeSettings(BaseSettings):
     Near-duplicates need a threshold, and a threshold needs a justification.
     """
 
-    model_config = SettingsConfigDict(env_prefix="DEDUPE_", extra="ignore")
+    model_config = _group_config("DEDUPE_")
 
     enable_perceptual: bool = True
     #: Hamming distance over a 64-bit pHash.
@@ -183,8 +208,11 @@ class DedupeSettings(BaseSettings):
     #:   1-5   — same photo, different crop/watermark/colour grade   <-- our band
     #:   6-10  — visually similar, often genuinely different photographs
     #:   > 10  — unrelated
-    #: 5 is the conventional operating point and was spot-checked against the
-    #: collected data; see README for the observed pairs at each distance.
+    #: 5 is the conventional operating point. It has not been tuned against a
+    #: hand-labelled set of near-duplicate pairs, because this collection turned
+    #: out to contain none within any distance worth arguing about — see the
+    #: note on near-duplicate detection in the README, and the entry under
+    #: "what I would do with more time" that says tuning it is still owed.
     max_hamming_distance: int = 5
     #: When two images collide, keep the higher-resolution one. Ties break on
     #: first-seen, which keeps the choice deterministic across re-runs.
@@ -230,7 +258,7 @@ class SplitSettings(BaseSettings):
     permanence matters more than an exact ratio.
     """
 
-    model_config = SettingsConfigDict(env_prefix="SPLIT_", extra="ignore")
+    model_config = _group_config("SPLIT_")
 
     train_percent: int = 80
     stratify_by_class: bool = True
@@ -262,7 +290,7 @@ class SplitSettings(BaseSettings):
 class SourceSettings(BaseSettings):
     """Which classes to collect, from where, and how many."""
 
-    model_config = SettingsConfigDict(env_prefix="SOURCE_", extra="ignore")
+    model_config = _group_config("SOURCE_")
 
     #: Three visually distinct classes, per the task brief.
     classes: tuple[str, ...] = ("cat", "dog", "bird")
@@ -355,7 +383,7 @@ class PathSettings(BaseSettings):
     and dumping the DB should not mean moving gigabytes of JPEG.
     """
 
-    model_config = SettingsConfigDict(env_prefix="PATH_", extra="ignore")
+    model_config = _group_config("PATH_")
 
     data_dir: Path = Path("/data")
 
