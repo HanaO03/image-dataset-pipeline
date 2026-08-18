@@ -72,27 +72,76 @@ def _relative_image_path(row: dict[str, Any]) -> str:
     return f"images/{row['split']}/{row['class_label']}/{row['sha256']}{extension}"
 
 
-def _copy_images(rows: list[dict[str, Any]], output_dir: Path) -> tuple[int, list[str]]:
+def _copy_images(rows: list[dict[str, Any]], output_dir: Path) -> tuple[int, list[str], int]:
     """
-    Materialise the split/class folder tree. Returns (copied, missing).
+    Materialise the split/class folder tree. Returns (copied, missing, pruned).
 
     A row whose source file has vanished is reported rather than raised: the
     manifest is still correct for everything else, and a partial export with a
     known gap beats no export at all.
+
+    **The prune is not housekeeping.** Splitting runs across the whole stored
+    dataset, so an image can legitimately move from train to val as the dataset
+    grows. Copying without pruning left the previous copy exactly where it was,
+    and the same photograph then existed under `images/train/cat/` *and*
+    `images/val/cat/` — invisible in the manifest, which is generated from the
+    database and stays correct, but plainly visible to `ImageFolder` and every
+    other loader that walks the directory tree. That is train/val leakage: the
+    precise failure the deduplication stage exists to prevent, reintroduced at
+    the last step by an export that only ever added.
+
+    Only files under `images/` are touched. `sample_images/` is a sibling and
+    is committed to the repository, not generated here.
     """
     copied = 0
     missing: list[str] = []
+    expected: set[Path] = set()
+
     for row in rows:
         source = Path(row["storage_path"])
         if not source.is_file():
             missing.append(row["sha256"])
             continue
         destination = output_dir / _relative_image_path(row)
+        expected.add(destination)
         destination.parent.mkdir(parents=True, exist_ok=True)
         if not destination.exists():
             shutil.copy2(source, destination)
         copied += 1
-    return copied, missing
+
+    pruned = _prune_stale_images(output_dir / "images", expected)
+    return copied, missing, pruned
+
+
+def _prune_stale_images(images_root: Path, expected: set[Path]) -> int:
+    """
+    Delete every file under `images/` that the current dataset does not claim.
+
+    Covers the image that changed split, the image trimmed at the class target,
+    and the image dropped as a near-duplicate on a later run — all of which
+    would otherwise linger in the exported tree and be loaded as training data
+    that the manifest says nothing about.
+    """
+    if not images_root.is_dir():
+        return 0
+
+    pruned = 0
+    for path in images_root.rglob("*"):
+        if path.is_file() and path not in expected:
+            path.unlink()
+            pruned += 1
+
+    # Leave no empty class or split directories behind: an empty `val/bird/`
+    # reads as a class with no validation images, which is a real condition
+    # this pipeline warns about and must not fake.
+    for path in sorted(images_root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        if path.is_dir() and not any(path.iterdir()):
+            path.rmdir()
+
+    if pruned:
+        log.info("export: pruned images no longer in the dataset",
+                 extra={"pruned": pruned})
+    return pruned
 
 
 def _dataset_fingerprint(rows: list[dict[str, Any]]) -> str:
@@ -128,9 +177,9 @@ def run(
     for row in rows:
         row["relative_path"] = _relative_image_path(row)
 
-    copied, missing = (0, [])
+    copied, missing, pruned = (0, [], 0)
     if copy_images:
-        copied, missing = _copy_images(rows, output_dir)
+        copied, missing, pruned = _copy_images(rows, output_dir)
         if missing:
             log.warning("export: image files missing from store",
                         extra={"count": len(missing), "examples": missing[:5]})
@@ -196,6 +245,7 @@ def run(
         "records": len(rows),
         "images_copied": copied,
         "images_missing": len(missing),
+        "images_pruned": pruned,
         "fingerprint": manifest["dataset_fingerprint"],
         "counts": manifest["counts"],
         "files": [str(parquet_path), str(csv_path), str(manifest_path)],

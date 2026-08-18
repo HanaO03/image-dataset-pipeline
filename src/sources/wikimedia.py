@@ -47,6 +47,55 @@ _LICENCE_SELECTORS = (
     "#licensetpl_short",
 )
 
+#: Page chrome, stripped before anything is read.
+#:
+#: This is not tidiness. Every MediaWiki page carries a footer reading "Text is
+#: available under the Creative Commons Attribution-ShareAlike 4.0 License",
+#: with a link to that deed — and it describes *Commons itself*, never the file
+#: on the page. Any licence search that is not scoped away from it will happily
+#: read the site's licence and attribute it to the photograph.
+#:
+#: That is not hypothetical. It shipped: four rows of the delivered dataset
+#: carried `license=CC0-1.0` next to a `by-sa/4.0` deed URL taken from the
+#: footer. The dangerous version is worse — a file under a licence with no CC
+#: deed of its own (GFDL, say) had no other creativecommons.org anchor on the
+#: page, so the footer became its licence, and it would have been stamped
+#: CC-BY-SA-4.0 and shipped as training data. `MISSING_LICENSE` could not fire
+#: on any real Commons page, because the footer always answered first.
+#:
+#: The fixtures missed it because hand-written test HTML has no page chrome.
+#: Real pages do, which is the argument for keeping at least one fixture that
+#: looks like the thing rather than like its essentials.
+_CHROME_SELECTORS = (
+    "#footer",
+    ".mw-footer",
+    "#footer-info",
+    ".printfooter",
+    "#mw-navigation",
+    "#siteNotice",
+    "#catlinks",
+)
+
+#: Where a file's *own* licensing lives, most specific first. Searching is
+#: confined to these; there is deliberately no whole-document fallback, because
+#: the whole document is exactly what caused the defect above.
+_LICENCE_SCOPES = (
+    "#mw-content-text .licensetpl",
+    "#mw-content-text table.layouttemplate",
+    "#mw-content-text .license",
+    # The same containers on pages that do not wrap content in #mw-content-text,
+    # which is a skin detail and has changed more than once.
+    ".licensetpl",
+    "table.layouttemplate",
+    ".license",
+    "#mw-imagepage-content",
+    "#mw-content-text",
+    # Last resort: the body, minus the chrome removed above. Reached only by a
+    # page with no recognisable content container at all — and still not the
+    # whole document, because the footer is already gone by this point.
+    "body",
+)
+
 #: Public-domain pages often carry no licence *template* at all, only prose.
 #: These patterns are the last resort before rejecting the image outright.
 _PD_PATTERNS = (
@@ -301,7 +350,7 @@ class WikimediaCommonsSource(ImageSource):
         # must produce one rejection, never take down a run that has already
         # collected a hundred good images.
         try:
-            soup = BeautifulSoup(response.text, "lxml")
+            soup = self.strip_chrome(BeautifulSoup(response.text, "lxml"))
             image_url = self._extract_full_image_url(soup)
             licence = self._extract_licence(soup)
             licence_url = self._extract_licence_url(soup)
@@ -398,6 +447,39 @@ class WikimediaCommonsSource(ImageSource):
         return None
 
     @staticmethod
+    def strip_chrome(soup: BeautifulSoup) -> BeautifulSoup:
+        """
+        Remove the site's own furniture before reading anything from the page.
+
+        Called once, immediately after parsing, so that every extractor below
+        sees only the file's own content. See `_CHROME_SELECTORS` for why this
+        is a correctness measure and not housekeeping.
+        """
+        for selector in _CHROME_SELECTORS:
+            for node in soup.select(selector):
+                node.decompose()
+        return soup
+
+    @staticmethod
+    def _licence_scope(soup: BeautifulSoup):
+        """
+        The narrowest container that plausibly holds this file's licensing.
+
+        Strips chrome first rather than assuming a caller already did. The
+        guarantee "the footer can never be read as a licence" should hold for
+        anyone who calls these functions — including a future test that builds
+        a soup by hand — and not depend on remembering to call something first.
+        `decompose()` on an already-removed node is a no-op, so paying for this
+        twice costs nothing.
+        """
+        WikimediaCommonsSource.strip_chrome(soup)
+        for selector in _LICENCE_SCOPES:
+            node = soup.select_one(selector)
+            if node is not None:
+                return node
+        return None
+
+    @staticmethod
     def _extract_licence(soup: BeautifulSoup) -> str | None:
         """
         Establish the licence, trying the most trustworthy signal first.
@@ -412,14 +494,22 @@ class WikimediaCommonsSource(ImageSource):
         Reading the rendered text first meant a page whose template rendered in
         German, or with an unusual short name, was rejected as unlicensed even
         though its deed link said exactly what the licence was.
+
+        Every step is confined to the file's own licensing area. A page whose
+        licence we cannot find there is rejected as unlicensed — which is the
+        correct answer, and the one the footer used to prevent us from giving.
         """
-        for anchor in soup.select('a[href*="creativecommons.org"]'):
+        scope = WikimediaCommonsSource._licence_scope(soup)
+        if scope is None:
+            return None
+
+        for anchor in scope.select('a[href*="creativecommons.org"]'):
             derived = WikimediaCommonsSource._licence_from_cc_url(anchor.get("href", ""))
             if derived:
                 return derived
 
         for selector in _LICENCE_SELECTORS:
-            node = soup.select_one(selector)
+            node = scope.select_one(selector)
             if node and node.get_text(strip=True):
                 return node.get_text(strip=True)
 
@@ -443,9 +533,20 @@ class WikimediaCommonsSource(ImageSource):
 
     @staticmethod
     def _extract_licence_url(soup: BeautifulSoup) -> str | None:
-        link = soup.select_one('a[href*="creativecommons.org/licenses"]') or soup.select_one(
-            'a[href*="creativecommons.org/publicdomain"]'
-        )
+        """
+        The deed URL for *this file*, in document order within its own scope.
+
+        The previous version preferred `/licenses` over `/publicdomain` across
+        the whole page. On a CC0 file that is precisely backwards: the file's
+        own deed is `/publicdomain/zero/1.0/`, the only `/licenses` link is the
+        site footer's, and the preference reached past the right answer to pick
+        the wrong one. Four rows of the delivered dataset say `CC0-1.0` beside a
+        `by-sa/4.0` URL for exactly that reason.
+        """
+        scope = WikimediaCommonsSource._licence_scope(soup)
+        if scope is None:
+            return None
+        link = scope.select_one('a[href*="creativecommons.org"]')
         return WikimediaCommonsSource._absolutise(link["href"]) if link else None
 
     @staticmethod

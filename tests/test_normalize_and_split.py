@@ -72,6 +72,44 @@ def test_unmappable_licences_return_none_so_the_image_is_rejected(raw):
     assert normalise_license(raw) is None
 
 
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        # CC renamed this element between generations. 2.0 and 3.0 say
+        # "NoDerivs"; only 4.0 says "NoDerivatives". Matching the longer stem
+        # dropped ND from every 2.0/3.0 licence and relabelled it CC-BY.
+        ("Creative Commons Attribution-NoDerivs 3.0", "CC-BY-ND-3.0"),
+        ("Creative Commons Attribution-NoDerivs 2.0 Generic", "CC-BY-ND-2.0"),
+        ("Creative Commons Attribution-NoDerivatives 4.0", "CC-BY-ND-4.0"),
+        ("Creative Commons Attribution-No Derivative Works 3.0", "CC-BY-ND-3.0"),
+        # And the compound case: matching only the first whole-name pattern
+        # meant NonCommercial won and ND was discarded silently.
+        ("Creative Commons Attribution-NonCommercial-NoDerivs 2.0", "CC-BY-NC-ND-2.0"),
+        ("Creative Commons Attribution-NonCommercial-ShareAlike 3.0", "CC-BY-NC-SA-3.0"),
+    ],
+)
+def test_every_element_in_a_long_form_name_survives(raw, expected):
+    """
+    The regression that mattered most: a restricted licence silently becoming a
+    permissive one. `Attribution-NoDerivs 3.0` normalised to `CC-BY-3.0`, which
+    is not a relabelling the NC/ND gate downstream can catch — by the time it
+    runs, the ND is gone.
+    """
+    assert normalise_license(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "Creative Commons Attribution-NoDerivs 3.0",
+        "Creative Commons Attribution-NonCommercial-NoDerivs 2.0",
+    ],
+)
+def test_long_form_nd_licences_are_refused_by_the_gate(raw):
+    """The two halves joined up: parsed correctly, therefore rejected."""
+    assert not license_permits(normalise_license(raw), ("NC", "ND"))
+
+
 def test_element_order_is_canonical_regardless_of_input_order():
     """`nc-by` and `by-nc` are the same licence; SPDX has one spelling for it."""
     assert normalise_license("nc-by-4.0") == normalise_license("by-nc-4.0") == "CC-BY-NC-4.0"

@@ -8,12 +8,24 @@ metadata in PostgreSQL, and exports an ML-ready dataset to `/data/output`.
 
 ```bash
 cp .env.example .env
-docker compose up --build
+make up          # or: docker compose up --build
 ```
 
 That is the whole setup. It builds the image, starts Postgres, applies the
 schema, runs the pipeline end to end, writes the dataset to `./data/output`, and
-exits 0. **Running it a second time inserts nothing and downloads nothing** —
+the pipeline container exits 0.
+
+**Two commands, one difference worth knowing.** `make up` adds
+`--abort-on-container-exit --exit-code-from pipeline`, so the command returns
+when the pipeline finishes and its exit code is the pipeline's — which is what
+you want in CI, or when you want the shell prompt back. Plain
+`docker compose up` stays attached afterwards, because Postgres is still
+running and `up` returns only when every service has stopped. That is deliberate
+— the database staying up is how the results can be queried
+([`make psql`](#running-and-inspecting)) — but it means the command does not
+exit on its own. Ctrl-C, or `docker compose down`, ends it.
+
+**Running it a second time inserts nothing and downloads nothing** —
 see [Idempotency](#idempotency).
 
 ---
@@ -385,7 +397,7 @@ make smoke          # quick run, 10 images per class
 make status         # recent runs + current dataset composition
 make psql           # psql shell against the pipeline database
 make verify-schema  # 12 assertions against the live schema, then rolls back
-make test           # 138 tests in Docker — no local Python needed
+make test           # 155 tests in Docker — no local Python needed
 make clean          # drop the volume and all outputs — start from nothing
 ```
 
@@ -581,26 +593,27 @@ tests/
 ├── test_normalize_and_split.py    licence mapping, the NC/ND gate, stratification, leakage
 ├── test_select.py                 class targets, determinism, orphan markings
 ├── test_download.py               the four rejections this stage owns
+├── test_export.py                 tree/manifest agreement, split-change pruning
 ├── test_http_client.py            robots.txt, per-host throttling, retries and 429
 ├── test_sources.py                adapter parsing against canned payloads
 └── test_integration.py            the real pipeline, end to end, twice
 ```
 
 ```bash
-make test        # 138 tests in Docker — needs no local Python at all
+make test        # 155 tests in Docker — needs no local Python at all
 ```
 
 The suite runs in its own build stage against the compose Postgres, so nothing
 is skipped and nothing has to be installed first. That is deliberate: a test
 suite that requires the reviewer to have Python 3.12 and the right wheels is a
-test suite the reviewer does not run, and "138 tests pass" then rests on my word
+test suite the reviewer does not run, and "155 tests pass" then rests on my word
 instead of on one command.
 
 It also runs on every push — [`.github/workflows/ci.yml`](.github/workflows/ci.yml),
 the badge at the top of this file. Lint, the full suite against a real Postgres
 service (so the integration test runs rather than skipping, and `-rs` reports it
 if it ever does skip), and a build of both Docker stages. The point is not the
-green tick: it is that "138 tests pass" and "`docker compose up` builds" are
+green tick: it is that "155 tests pass" and "`docker compose up` builds" are
 verified on a clean machine that is not mine, which is the only machine whose
 verdict actually matters here.
 
@@ -623,10 +636,12 @@ and the views, ending in `ROLLBACK` so it leaves no trace. Every assertion is a
 *delta* against a baseline taken at the start, so it can be run against the live
 database after a real run — which is exactly when anyone will reach for it.
 
-Ten defects were found. Nine came from testing and from running against the
-real sources rather than from reading the code — which is the argument for
-doing both. The tenth came from reading, and is the one I would most want a
-reviewer to notice:
+Fourteen defects were found. Nine came from testing and from running against
+the real sources; the rest came from reading — my own documentation against my
+own code, and then an adversarial review that went looking specifically for
+claims the code did not support. Both kinds are listed, because which method
+found which is the interesting part: the first nine were invisible to reading,
+and the last five were invisible to a green test suite.
 
 1. **An image was its own near-duplicate on re-run.** The pHash index is seeded
    from the database, which already contains every image about to be
@@ -695,6 +710,49 @@ reviewer to notice:
    `tests/test_download.py` and `tests/test_http_client.py`. Same lesson as
    defect 7, learned again: a claim in a README is a test that has not been
    written yet.
+11. **The site footer was read as the file's licence.** Every MediaWiki page
+   ends with "Text is available under CC BY-SA 4.0", linking that deed. It
+   describes Commons, not the photograph. The scraper searched the whole
+   document for a `creativecommons.org` anchor, so on any page whose own
+   licence had no CC deed — GFDL, for instance — the footer answered first and
+   the file was stamped `CC-BY-SA-4.0` and shipped as training data under a
+   licence its author never granted. `MISSING_LICENSE` was therefore
+   unreachable on any real Commons page. The milder version had already shipped
+   and is visible in the delivered `dataset.csv`: four rows reading
+   `license=CC0-1.0` beside a `by-sa/4.0` URL, because the URL extractor
+   preferred `/licenses/` over `/publicdomain/` across the whole page and
+   reached past the file's own deed to the footer's. Fixed by stripping page
+   chrome before anything is read and confining every licence lookup to the
+   file's own licensing container. **The fixtures could not have caught it:**
+   hand-written test HTML has no page furniture. They all carry a real footer
+   now.
+12. **`NoDerivs` was not recognised as ND.** The long-form matcher required the
+   literal `derivat`, which only appears in the 4.0 spelling
+   "NoDerivatives"; CC 2.0 and 3.0 render "NoDerivs". So
+   `Attribution-NoDerivs 3.0` normalised to `CC-BY-3.0` — the single most
+   restrictive licence in the set relabelled as one of the most permissive, and
+   the NC/ND gate downstream had nothing left to catch. The same design flaw
+   dropped ND from `Attribution-NonCommercial-NoDerivs 2.0`, because the
+   matcher returned the elements of the first whole-name pattern that matched
+   instead of accumulating every element present. Now one pattern per element,
+   all of them tested.
+13. **The export never pruned, so a re-split leaked.** Splitting runs over the
+   whole stored dataset, so an image can legitimately move from train to val as
+   the dataset grows — and `_copy_images` only ever added. The previous copy
+   stayed exactly where it was, and the same photograph then existed under
+   `images/train/cat/` *and* `images/val/cat/`. The manifest is generated from
+   the database and stayed correct, which is what hid it; `ImageFolder` does
+   not read the manifest, it walks directories. Train/val leakage — the failure
+   the entire deduplication stage exists to prevent — reintroduced at the last
+   step by the one stage nobody thought of as making decisions.
+   `tests/test_export.py` now asserts the tree and the manifest describe the
+   same set of files, after a reshuffle.
+14. **`docker compose up` does not exit, and the first line of this README said
+   it did.** The pipeline container exits 0; Postgres keeps running, and `up`
+   returns only when every service stops. `make up` passes
+   `--abort-on-container-exit --exit-code-from pipeline` and does return. The
+   quickstart now says so — a small thing, on the most-read line in the
+   repository.
 
 ---
 

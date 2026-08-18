@@ -61,12 +61,29 @@ _PUBLIC_DOMAIN = {
     "pd-old": "PDM-1.0",
 }
 
-#: Long-form names Commons renders in prose, mapped to their element codes.
-_LONGFORM = (
-    (re.compile(r"attribution[-\s]*share[-\s]*alike", re.I), ["BY", "SA"]),
-    (re.compile(r"attribution[-\s]*no[-\s]*derivat", re.I), ["BY", "ND"]),
-    (re.compile(r"attribution[-\s]*non[-\s]*commercial", re.I), ["BY", "NC"]),
-    (re.compile(r"\battribution\b", re.I), ["BY"]),
+#: Long-form names Commons renders in prose, one pattern per element.
+#:
+#: Each is tested independently and every match contributes, which is the
+#: correction to a version that returned the elements of the *first* whole-name
+#: pattern that matched. Two failures came out of that design, both silent, both
+#: relabelling a restricted licence as a permissive one:
+#:
+#:   "Attribution-NonCommercial-NoDerivs 2.0"  ->  CC-BY-NC-2.0   (ND dropped)
+#:   "Attribution-NoDerivs 3.0"                ->  CC-BY-3.0      (ND dropped)
+#:
+#: The second is the worse of the two: it turns the one licence this dataset
+#: must never contain into the one it most wants, and the NC/ND gate downstream
+#: then has nothing to catch.
+#:
+#: `no[-\s]*deriv` rather than `no[-\s]*derivat` because Creative Commons
+#: renamed the element between generations: 2.0 and 3.0 render "NoDerivs",
+#: 4.0 renders "NoDerivatives". The shorter stem covers both, plus the prose
+#: form "No Derivative Works".
+_LONGFORM_ELEMENTS = (
+    (re.compile(r"\battribution\b", re.I), "BY"),
+    (re.compile(r"non[-\s]*commercial", re.I), "NC"),
+    (re.compile(r"no[-\s]*deriv", re.I), "ND"),
+    (re.compile(r"share[-\s]*alike", re.I), "SA"),
 )
 
 _VERSION_RE = re.compile(r"(\d+\.\d+)")
@@ -105,10 +122,12 @@ def normalise_license(raw: str | None) -> str | None:
     if coded:
         elements = [c.upper() for c in coded]
     else:
-        for pattern, mapped in _LONGFORM:
-            if pattern.search(text):
-                elements = mapped
-                break
+        # Every element that appears, not the first name that matches.
+        elements = [code for pattern, code in _LONGFORM_ELEMENTS if pattern.search(text)]
+        # "Attribution" is implied by any CC element name in prose form, but a
+        # string naming only restrictions is not a licence we can reconstruct.
+        if elements and "BY" not in elements:
+            elements = []
 
     if not elements:
         return None

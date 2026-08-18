@@ -193,7 +193,22 @@ CATEGORY_HTML = """
 </div></body></html>
 """
 
-FILE_PAGE_CC = """
+
+#: Every real MediaWiki page ends with this. It states the licence of *Commons*,
+#: not of the file, and it is the reason four rows of the delivered dataset
+#: carried a licence URL belonging to the website rather than the photograph.
+#: Every fixture below now carries it, because a fixture that omits the page
+#: furniture cannot catch a bug caused by the page furniture.
+MW_FOOTER = """
+  <div id="catlinks"><a href="/wiki/Category:Cats">Cats</a></div>
+  <div id="footer" class="mw-footer"><ul id="footer-info">
+    <li>Text is available under the
+      <a rel="license" href="https://creativecommons.org/licenses/by-sa/4.0/">
+      Creative Commons Attribution-ShareAlike 4.0 License</a>.</li>
+  </ul></div>
+"""
+
+FILE_PAGE_CC = f"""
 <html><body>
   <div class="fullImageLink" id="file">
     <a href="//upload.wikimedia.org/wikipedia/commons/1/15/Cat_one.jpg">
@@ -203,30 +218,68 @@ FILE_PAGE_CC = """
   <table class="fileinfotpl-type-information">
     <tr><td id="fileinfotpl_aut" class="fileinfo-paramfield">Author</td><td>Alvesgaspar</td></tr>
   </table>
-  <div class="licensetpl">
+  <div id="mw-content-text"><div class="licensetpl">
     <span class="licensetpl_short">CC BY-SA 3.0</span>
     <a href="https://creativecommons.org/licenses/by-sa/3.0/">link</a>
-  </div>
+  </div></div>
+  {MW_FOOTER}
 </body></html>
 """
 
-FILE_PAGE_PD = """
+FILE_PAGE_PD = f"""
 <html><body>
   <div class="fullImageLink">
     <a href="//upload.wikimedia.org/wikipedia/commons/2/22/Cat_two.jpg"><img src="x"></a>
   </div>
-  <table class="layouttemplate">
+  <div id="mw-content-text"><table class="layouttemplate">
     <tr><td>This work is in the <b>public domain</b> in its country of origin.</td></tr>
-  </table>
+  </table></div>
+  {MW_FOOTER}
 </body></html>
 """
 
-FILE_PAGE_NO_LICENCE = """
+FILE_PAGE_NO_LICENCE = f"""
 <html><body>
   <div class="fullImageLink">
     <a href="//upload.wikimedia.org/wikipedia/commons/3/33/Cat_three.jpg"><img src="x"></a>
   </div>
-  <p>Someone forgot to add a licence template.</p>
+  <div id="mw-content-text"><p>Someone forgot to add a licence template.</p></div>
+  {MW_FOOTER}
+</body></html>
+"""
+
+
+#: A file under a licence with no Creative Commons deed of its own. The only
+#: creativecommons.org anchor on the page is the site footer's — which is
+#: exactly how it used to be stamped CC-BY-SA-4.0 and shipped as training data.
+FILE_PAGE_GFDL = f"""
+<html><body>
+  <div class="fullImageLink">
+    <a href="//upload.wikimedia.org/wikipedia/commons/4/44/Cat_four.jpg"><img src="x"></a>
+  </div>
+  <div id="mw-content-text"><table class="layouttemplate licensetpl">
+    <tr><td>Permission is granted to copy, distribute and/or modify this document
+    under the terms of the <b>GNU Free Documentation License</b>, Version 1.2.</td></tr>
+  </table></div>
+  {MW_FOOTER}
+</body></html>
+"""
+
+
+#: A CC0 file. Its own deed lives under /publicdomain/zero/; the only
+#: /licenses/ link on the page belongs to the footer. Preferring "/licenses"
+#: over "/publicdomain" across the whole document is what put a by-sa/4.0 URL
+#: next to `license=CC0-1.0` in the delivered dataset.
+FILE_PAGE_CC0 = f"""
+<html><body>
+  <div class="fullImageLink">
+    <a href="//upload.wikimedia.org/wikipedia/commons/5/55/Cat_five.jpg"><img src="x"></a>
+  </div>
+  <div id="mw-content-text"><div class="licensetpl">
+    <span class="licensetpl_short">CC0</span>
+    <a href="https://creativecommons.org/publicdomain/zero/1.0/deed.en">CC0</a>
+  </div></div>
+  {MW_FOOTER}
 </body></html>
 """
 
@@ -478,3 +531,89 @@ def test_broad_sweep_fallback_when_gallery_markup_is_absent(source_settings):
     assert len(records) == 1
     assert not any("Logo.png" in url for url in client.requested), "nav must be excluded"
     assert not any("diagram.svg" in url for url in client.requested), "svg must be filtered"
+
+
+# =============================================================================
+#  Page chrome must never be read as the file's licence
+# =============================================================================
+#
+#  Every fixture above now ends with MW_FOOTER, because these three defects all
+#  had the same shape and none of them were reachable with chrome-free HTML:
+#
+#    * a CC0 file shipped with the footer's by-sa/4.0 URL beside it — four rows
+#      of the delivered dataset;
+#    * a file with no CC deed of its own inherited the footer's licence
+#      wholesale, so MISSING_LICENSE could not fire on any real Commons page;
+#    * the strict licence policy therefore had a hole precisely where it was
+#      most confidently claimed.
+
+
+def test_a_file_with_no_cc_deed_is_rejected_rather_than_given_the_sites(source_settings):
+    """
+    GFDL is a real licence, and it is not one this dataset accepts. What must
+    never happen is the pipeline reading the footer, deciding the photograph is
+    CC-BY-SA-4.0, and shipping it as training data under a licence its author
+    never granted.
+    """
+    client = FakeClient(
+        pages={
+            f"{BASE}/wiki/Category:Cats": CATEGORY_HTML,
+            f"{BASE}/wiki/File:Cat_one.jpg": FILE_PAGE_GFDL,
+        }
+    )
+    source = WikimediaCommonsSource(client, source_settings)
+    records = list(source.fetch("cat", 5))
+
+    assert records == [], "a page whose only CC link is the footer has no licence"
+    reasons = [r.reason_code for r in source.drain_rejections()]
+    # The other file pages in the category listing are not served here, so they
+    # fail to fetch; what matters is that the GFDL page was rejected for the
+    # right reason rather than accepted for the wrong one.
+    assert RejectionReason.MISSING_LICENSE in reasons
+
+
+def test_a_cc0_file_keeps_its_own_deed_url(source_settings):
+    """
+    The licence and the URL must describe the same thing. They did not: the
+    licence came from the file's own CC0 template and the URL from the site
+    footer, and the two disagreed in the shipped dataset.csv.
+    """
+    from src.pipeline.normalize import normalise_license
+
+    client = FakeClient(
+        pages={
+            f"{BASE}/wiki/Category:Cats": CATEGORY_HTML,
+            f"{BASE}/wiki/File:Cat_one.jpg": FILE_PAGE_CC0,
+        }
+    )
+    records = list(WikimediaCommonsSource(client, source_settings).fetch("cat", 5))
+
+    assert len(records) == 1
+    assert normalise_license(records[0].license_raw) == "CC0-1.0"
+    assert "publicdomain/zero" in records[0].license_url
+    assert "by-sa" not in records[0].license_url
+
+
+def test_the_licence_and_its_url_agree_on_every_scraped_record(source_settings):
+    """
+    The invariant, asserted over every fixture at once rather than one page at
+    a time — the check that would have caught this in the delivered CSV.
+    """
+    from src.pipeline.normalize import normalise_license
+
+    client = _commons_client()
+    records = list(WikimediaCommonsSource(client, source_settings).fetch("cat", 10))
+    assert records, "fixtures must yield something for this to mean anything"
+
+    for record in records:
+        spdx = normalise_license(record.license_raw)
+        if not record.license_url or spdx is None:
+            continue
+        url = record.license_url.lower()
+        if spdx.startswith("CC0"):
+            assert "publicdomain/zero" in url, (spdx, url)
+        elif spdx.startswith("PDM"):
+            assert "publicdomain" in url, (spdx, url)
+        else:
+            elements = spdx[len("CC-"):].rsplit("-", 1)[0].lower()
+            assert f"/licenses/{elements}/" in url, (spdx, url)
