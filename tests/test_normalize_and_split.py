@@ -119,6 +119,74 @@ def test_missing_version_falls_back_to_a_stated_default():
     assert normalise_license("CC BY-SA") == "CC-BY-SA-4.0"
 
 
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "All rights reserved. Photo by Jane Doe",
+        "Photograph by Ansel Adams, 1941",
+        "Copyrighted, used by permission",
+        "Fair use, image provided by the museum",
+        "Attribution required, photo courtesy of the museum",
+    ],
+)
+def test_ordinary_prose_does_not_manufacture_a_licence(raw):
+    """
+    The defect this guards against was the most dangerous one in the module, and
+    it was invisible in every output: scanning the raw string for `\\b(by|nc|nd|sa)\\b`
+    meant the ordinary English word "by" produced `CC-BY-4.0`. An
+    all-rights-reserved image was therefore not rejected — it was relabelled as
+    the most permissive licence the dataset accepts, sailed through the NC/ND
+    gate because no forbidden element was present to catch, and shipped as
+    training data under a licence nobody granted.
+
+    A scraped `Author` or `Description` cell is exactly this shape, so the input
+    is routine rather than adversarial.
+    """
+    assert normalise_license(raw) is None
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "Public domain in the US only; CC BY-NC 4.0 elsewhere",
+        "CC0 in Germany, NonCommercial elsewhere",
+        "Public domain — no derivatives permitted",
+    ],
+)
+def test_a_public_domain_claim_contradicted_by_a_restriction_is_refused(raw):
+    """
+    The public-domain shortcut runs before element parsing, which is right — PD
+    identifiers have no elements to parse. What was wrong was that it also ran
+    before *noticing a restriction*, and `PDM-1.0` does not begin "CC-", so
+    `license_elements` returned an empty set and the NC/ND gate had nothing to
+    intersect. An explicitly NonCommercial image entered the dataset labelled
+    public domain.
+
+    Jurisdiction-qualified prose of this shape is ordinary on Commons licence
+    boxes. Rejecting is the honest answer: we cannot tell which claim governs.
+    """
+    assert normalise_license(raw) is None
+
+
+def test_unambiguous_public_domain_is_still_accepted():
+    """The guard above must not swallow the plain cases it sits in front of."""
+    assert normalise_license("Public domain") == "PDM-1.0"
+    assert normalise_license("CC0") == "CC0-1.0"
+    assert normalise_license("PD-self") == "PDM-1.0"
+
+
+def test_the_version_is_read_from_the_licence_not_the_leftmost_number():
+    """
+    `_VERSION_RE.search(text)` over the whole string took whichever `\\d+\\.\\d+`
+    came first, so a dual-licensed Commons page — the most common `{{Self}}`
+    combination there is — produced an SPDX identifier that does not exist:
+
+        "GFDL 1.2 or Creative Commons Attribution-ShareAlike 3.0" -> CC-BY-SA-1.2
+    """
+    raw = "GFDL 1.2 or Creative Commons Attribution-ShareAlike 3.0"
+    assert normalise_license(raw) == "CC-BY-SA-3.0"
+
+
 def test_attribution_requirement_is_derived_from_the_licence():
     assert requires_attribution("CC-BY-4.0")
     assert requires_attribution("CC-BY-SA-3.0")

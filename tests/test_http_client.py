@@ -320,15 +320,22 @@ def test_an_http_date_in_retry_after_falls_back_to_our_own_backoff(monkeypatch):
     assert len(recorder.delays) == 1
 
 
-def test_backoff_grows_and_is_jittered(monkeypatch):
+def test_backoff_grows_exponentially(monkeypatch):
     """
-    Jitter is not decoration. Without it, eight workers that hit a 429 together
-    retry together, re-trigger the limit together, and synchronise into a
-    thundering herd — so two clients backing off the same attempt must not
-    choose the same delay.
+    Growth is a property of the *nominal* delay, so the jitter is pinned while it
+    is measured.
+
+    Asserting growth across two jittered draws — which this test used to do — is
+    not a test of growth at all. The bands overlap by construction: attempt 1
+    spans [0.75, 2.25] and attempt 2 spans [1.5, 4.5], so a perfectly correct
+    implementation loses the comparison about 6% of the time. A test that fails
+    one run in sixteen reddens CI at random, and the thing everyone learns from
+    it is to re-run the job rather than to read it — which is strictly worse
+    than not having written it. Jitter is asserted below, on its own terms.
     """
     recorder = _Recorder()
     monkeypatch.setattr("src.http.client.time.sleep", recorder)
+    monkeypatch.setattr("src.http.client.random.random", lambda: 0.5)
 
     client, _ = _client_with(
         [RetryableResponse(503), RetryableResponse(503), RetryableResponse(200)],
@@ -338,14 +345,33 @@ def test_backoff_grows_and_is_jittered(monkeypatch):
 
     assert len(recorder.delays) == 2
     assert recorder.delays[1] > recorder.delays[0], "delay must grow with attempts"
+    assert recorder.delays[1] == pytest.approx(recorder.delays[0] * 2), "and double"
 
-    second = _Recorder()
-    monkeypatch.setattr("src.http.client.time.sleep", second)
-    client2, _ = _client_with([RetryableResponse(503), RetryableResponse(200)])
-    client2.request("GET", "https://cdn.example.org/a.jpg")
-    # Same nominal delay, drawn independently: identical values would mean the
-    # jitter is not being applied at all.
-    assert second.delays[0] != recorder.delays[0]
+
+def test_backoff_is_jittered(monkeypatch):
+    """
+    Jitter is not decoration. Without it, eight workers that hit a 429 together
+    retry together, re-trigger the limit together, and synchronise into a
+    thundering herd — so two clients backing off the *same* attempt must not
+    choose the same delay.
+
+    Twenty draws rather than two: a single pair can coincide by chance, and the
+    point is that the distribution is not degenerate.
+    """
+    drawn = set()
+    for _ in range(20):
+        recorder = _Recorder()
+        monkeypatch.setattr("src.http.client.time.sleep", recorder)
+        client, _ = _client_with([RetryableResponse(503), RetryableResponse(200)])
+        client.request("GET", "https://cdn.example.org/a.jpg")
+        drawn.add(recorder.delays[0])
+
+    assert len(drawn) > 1, "identical delays every time means no jitter is applied"
+    # And every draw stays inside the documented 50%–150% band of the nominal
+    # first-attempt delay. Derived from the setting rather than hardcoded, so
+    # the test does not quietly stop meaning anything if backoff_factor moves.
+    nominal = _client_with([RetryableResponse(200)])[0].settings.backoff_factor
+    assert all(0.5 * nominal <= d <= 1.5 * nominal for d in drawn)
 
 
 def test_a_persistent_429_raises_rate_limited_rather_than_a_generic_failure(monkeypatch):
