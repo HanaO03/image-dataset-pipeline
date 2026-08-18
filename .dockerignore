@@ -36,4 +36,5 @@ htmlcov/
 # Documentation is not needed to run the pipeline.
 README.md
 LICENSE
+NOTICE
 Makefile

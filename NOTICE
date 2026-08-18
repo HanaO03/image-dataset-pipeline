@@ -1,0 +1,23 @@
+THE CODE AND THE DATA CARRY DIFFERENT LICENCES.
+
+`LICENSE` (MIT) covers the source code in this repository, and only that.
+
+It does not cover the images. Those are the work of third parties and remain
+under their own terms — CC-BY, CC-BY-SA, CC0 and PDM, one licence per image.
+This applies both to the sample committed under `data/output/sample_images/`
+and to any dataset produced by running the pipeline.
+
+Where to find the terms for a given image:
+
+  data/output/manifest.json      per-image `license`, `license_url`,
+                                 `attribution` and `source_url`
+  data/output/dataset.csv        the same fields, in tabular form
+  data/output/ATTRIBUTIONS.txt   ready-made credit lines, one per image
+
+Retaining those credits is a condition of the CC-BY family and the reason
+ATTRIBUTIONS.txt is generated on every run rather than written once by hand.
+
+The pipeline only collects images whose licence permits both commercial use
+and modification, and rejects any image whose licence it cannot determine —
+see the licence policy in README.md. That is a deliberate constraint on what
+this dataset contains; it is not legal advice about what you may do with it.

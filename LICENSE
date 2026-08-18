@@ -19,14 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-NOTE ON THE DATASET, WHICH THIS LICENCE DOES NOT COVER.
-
-This licence applies to the source code only. The images this pipeline
-collects, and the sample committed under `data/output/sample_images/`, are the
-work of third parties and remain under their own licences — CC-BY, CC-BY-SA,
-CC0 and PDM, one per image. Every one of them is recorded in
-`data/output/manifest.json` and credited in `data/output/ATTRIBUTIONS.txt`,
-which is a condition of the CC-BY family and the reason that file exists.

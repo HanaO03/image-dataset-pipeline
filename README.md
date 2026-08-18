@@ -404,6 +404,11 @@ This means the `path` field in `manifest.json` resolves after a run, not after a
 clone. Documented rather than papered over: a manifest that pointed at a
 committed subset would describe a dataset that does not exist.
 
+**Two licences, and they are not the same one.** The code is MIT
+([`LICENSE`](LICENSE)). The images are not: each one keeps the licence its
+photographer chose, recorded per image in the manifest and credited in
+`ATTRIBUTIONS.txt`. [`NOTICE`](NOTICE) says which file to look in for what.
+
 `manifest.json` carries `schema_version`, `dataset_fingerprint`, `run_id`,
 per-class/split counts, a licence breakdown, the producing configuration
 (secrets stripped), and one entry per image with a relative path and checksum.
