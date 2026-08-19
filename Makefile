@@ -33,9 +33,11 @@ status:  ## Show recent runs and current dataset composition
 	$(COMPOSE) run --rm pipeline python -m src.cli status
 
 psql:  ## Open a psql shell against the pipeline database
+	$(COMPOSE) up -d --wait postgres
 	$(COMPOSE) exec postgres psql -U $${POSTGRES_USER:-pipeline} -d $${POSTGRES_DB:-imagedb}
 
 verify-schema:  ## Run the schema smoke test (12 assertions, rolls back)
+	$(COMPOSE) up -d --wait postgres
 	$(COMPOSE) exec -T postgres psql -U $${POSTGRES_USER:-pipeline} -d $${POSTGRES_DB:-imagedb} \
 		-f - < sql/verify_schema.sql
 
@@ -49,6 +51,9 @@ clean:  ## Stop containers and delete the database volume and all outputs
 	$(COMPOSE) down -v
 	rm -rf data/images data/output
 	@echo "cleaned. next 'make up' starts from a completely empty state."
+	@echo "note: data/output is committed to git. restore the delivered"
+	@echo "      manifest, CSV, parquet and samples with:"
+	@echo "      git checkout -- data/output"
 
 test:  ## Run the full suite in Docker, integration tests included (needs no local Python)
 	$(COMPOSE) --profile test build tests

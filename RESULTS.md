@@ -89,6 +89,18 @@ python -c "import csv; rows=[r for r in csv.DictReader(open('data/output/dataset
 # 198 — every scraped credit is within the cap, and none carries a VIAF or ISNI identifier
 ```
 
+**What that number proves, and what it does not.** It proves the cap is
+enforced and the authority records are gone: no row exceeds 200 characters, and
+none carries a VIAF, ISNI or GND identifier. It does not prove the cell holds a
+credit. One of the 26 scraped rows still reads as a `{{Creator}}` biography
+rather than a name — `Geoff Charles (1909–2002) Description Welsh photographer
+and photojournalist Date of birth/death …` — trimmed to length and stripped of
+identifiers, but still a catalogue entry where a credit belongs. Length is a
+bound on the damage, not a definition of the field, and presenting a
+measurement of the first as evidence about the second is defect 18 committed a
+second time. The remaining case is a shape `_clean_author` does not yet
+recognise, and it is one row rather than the class being solved.
+
 One scraped credit is a list rather than a name: the montage below has several
 photographers, its Commons page says so, and the scraper reports what the page
 says. A credit line that names four people because four people are owed credit
