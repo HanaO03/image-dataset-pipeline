@@ -99,11 +99,24 @@ def _copy_images(rows: list[dict[str, Any]], output_dir: Path) -> tuple[int, lis
 
     for row in rows:
         source = Path(row["storage_path"])
-        if not source.is_file():
-            missing.append(row["sha256"])
-            continue
         destination = output_dir / _relative_image_path(row)
+
+        # The dataset claims this file, so it is never stale — whether or not
+        # the source is still in the store. Registering it only on the happy
+        # path was the bug: `data/images` is documented as a deletable cache,
+        # and ingestion skips any class already at target, so "clear the cache,
+        # keep the database, re-run" made `expected` empty and handed the whole
+        # exported tree to the pruner — while the manifest, built from the
+        # database rows below, went on describing all 180 images.
         expected.add(destination)
+
+        if not source.is_file():
+            # Already-exported copies stay usable; only a row with no bytes on
+            # either side is genuinely missing.
+            if not destination.exists():
+                missing.append(row["sha256"])
+            continue
+
         destination.parent.mkdir(parents=True, exist_ok=True)
         if not destination.exists():
             shutil.copy2(source, destination)

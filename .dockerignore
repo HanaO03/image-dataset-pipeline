@@ -2,7 +2,7 @@
 #  Build context exclusions.
 #
 #  Everything here is sent to the Docker daemon on every build, and `./data` is
-#  where the pipeline puts ~180 MB of images. Without this file the *second*
+#  where the pipeline puts ~94 MB of images. Without this file the *second*
 #  `docker compose up --build` — the one a reviewer runs after a first run has
 #  already populated ./data — uploads the entire dataset as build context
 #  before Docker even starts reading the Dockerfile. Nothing here is copied

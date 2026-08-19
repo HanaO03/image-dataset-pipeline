@@ -779,3 +779,108 @@ def test_a_file_with_several_authors_keeps_all_of_them(source_settings):
     assert len(attribution) <= 201
     assert attribution.endswith("…"), "a truncated credit must say that it was truncated"
     assert not attribution[:-1].endswith(" "), "cut on a word, not on a space"
+
+
+# =============================================================================
+#  Two licence boxes on one page
+#
+#  Commons file pages routinely carry more than one: a public-domain tag for
+#  the depicted work beside the photographer's own grant, or a GFDL/CC dual
+#  licence. Reading only the first is how an explicitly NonCommercial,
+#  NoDerivatives image was recorded as "Public domain" — an identifier with no
+#  CC elements, which the NC/ND gate therefore had nothing to refuse.
+# =============================================================================
+
+
+FILE_PAGE_TWO_BOXES = f"""
+<html><body>
+  <div class="fullImageLink">
+    <a href="//upload.wikimedia.org/wikipedia/commons/9/99/Dual.jpg"><img src="x"></a>
+  </div>
+  <div id="mw-content-text">
+    <table class="licensetpl">
+      <span class="licensetpl_short">Public domain</span>
+    </table>
+    <table class="licensetpl">
+      <span class="licensetpl_short">CC BY-NC-ND 4.0</span>
+      <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/">deed</a>
+    </table>
+  </div>
+  {MW_FOOTER}
+</body></html>
+"""
+
+FILE_PAGE_GFDL_AND_CC = f"""
+<html><body>
+  <div class="fullImageLink">
+    <a href="//upload.wikimedia.org/wikipedia/commons/8/88/Dual2.jpg"><img src="x"></a>
+  </div>
+  <div id="mw-content-text">
+    <table class="licensetpl"><span class="licensetpl_short">GFDL</span></table>
+    <table class="licensetpl">
+      <a href="https://creativecommons.org/licenses/by-sa/3.0/">deed</a>
+    </table>
+  </div>
+  {MW_FOOTER}
+</body></html>
+"""
+
+
+def _soup(html: str):
+    from bs4 import BeautifulSoup
+
+    return BeautifulSoup(html, "lxml")
+
+
+def test_the_more_restrictive_of_two_licence_boxes_is_the_one_recorded():
+    """
+    The failure this prevents is not a wrong label, it is an unusable image
+    shipped as usable: `PDM-1.0` carries no elements, so `license_permits`
+    had nothing to intersect and the NC/ND gate passed it through.
+    """
+    from src.pipeline.normalize import license_permits, normalise_license
+
+    licence = WikimediaCommonsSource._extract_licence(_soup(FILE_PAGE_TWO_BOXES))
+    spdx = normalise_license(licence)
+
+    assert spdx == "CC-BY-NC-ND-4.0", f"read the wrong box: {licence!r} -> {spdx}"
+    assert not license_permits(spdx, ("NC", "ND")), "the gate must refuse this image"
+
+
+def test_the_licence_url_comes_from_the_same_box_as_the_licence():
+    """
+    Read apart, the two could disagree: the licence reader skipped a CC anchor
+    that yielded no code while the URL reader took the first one unconditionally.
+    """
+    licence = WikimediaCommonsSource._extract_licence(_soup(FILE_PAGE_TWO_BOXES))
+    url = WikimediaCommonsSource._extract_licence_url(_soup(FILE_PAGE_TWO_BOXES))
+
+    assert licence is not None and url is not None
+    assert "by-nc-nd" in url, f"url points at a different box than the licence: {url}"
+
+
+def test_a_readable_cc_box_beats_an_unparseable_one():
+    """
+    GFDL beside CC BY-SA is a real dual licence, not a conflict. Recording the
+    one we can actually resolve keeps the image rather than rejecting it as
+    unlicensed.
+    """
+    from src.pipeline.normalize import normalise_license
+
+    licence = WikimediaCommonsSource._extract_licence(_soup(FILE_PAGE_GFDL_AND_CC))
+    assert normalise_license(licence) == "CC-BY-SA-3.0"
+
+
+@pytest.mark.parametrize(
+    "page, expected",
+    [
+        (FILE_PAGE_CC, "CC-BY-SA-3.0"),
+        (FILE_PAGE_CC0, "CC0-1.0"),
+        (FILE_PAGE_PD, "PDM-1.0"),
+    ],
+)
+def test_single_box_pages_are_unaffected_by_reading_all_boxes(page, expected):
+    """The multi-box fix must not move any page that only ever had one box."""
+    from src.pipeline.normalize import normalise_license
+
+    assert normalise_license(WikimediaCommonsSource._extract_licence(_soup(page))) == expected

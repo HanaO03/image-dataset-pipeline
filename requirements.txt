@@ -18,3 +18,10 @@ pyarrow==18.1.0           # parquet writer
 pydantic==2.10.3
 pydantic-settings==2.6.1
 typer==0.15.1
+# Transitive, but pinned deliberately: typer 0.15.x calls
+# `Parameter.make_metavar()` with click's pre-8.2 signature, and rich >= 14
+# moves the console internals typer's help renderer reaches into. Leaving
+# either unpinned let pip resolve click 8.4 / rich 15 and `--help` died with
+# a TypeError on any fresh install -- including the Docker image.
+click==8.1.8
+rich==13.9.4

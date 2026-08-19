@@ -1,7 +1,7 @@
 """
 Build a small, committable sample of the exported dataset.
 
-The full export copies every image into data/output/images/, which is ~80 MB —
+The full export copies every image into data/output/images/, which is ~94 MB —
 too heavy to put in a repository, and regenerable in one command anyway. This
 writes a handful of real images per class and split into
 data/output/sample_images/ so a reviewer can look at actual photographs without

@@ -105,7 +105,7 @@ services:
   #
   #     docker compose --profile test run --rm tests     (or: make test)
   #
-  # Running the suite here rather than on the host is what makes "161 tests pass"
+  # Running the suite here rather than on the host is what makes "187 tests pass"
   # a claim the reviewer can check in one command instead of a claim that
   # depends on them having Python 3.12 and the right wheels.
   tests:

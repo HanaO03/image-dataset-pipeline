@@ -91,9 +91,12 @@ The brief, mapped to the code that answers it.
   └────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Every stage has the same shape — `(records, settings) -> (kept, rejections,
-metrics)` — and none of them import the database or know what runs before or
-after. The runner is the only module that knows the order.
+The five transforming stages have the same shape — `(records, settings) ->
+StageResult(kept, rejections, metrics)` — and none of them import the database
+or know what runs before or after. `split` exposes pure assignment functions
+instead, and `export` takes the rows plus an output directory, because neither
+is filtering a stream of records. The runner is the only module that knows the
+order.
 
 That is not decoration. It is what makes each stage unit-testable in isolation,
 and it means replacing the runner with an Airflow DAG later is a change to one
@@ -134,10 +137,12 @@ src/
 └── cli.py               argument parsing and reporting only
 ```
 
-**The one rule worth stating explicitly:** no module outside `db/` writes SQL,
-and no module inside `pipeline/` touches the database. A reviewer can audit the
-entire data-access surface by reading one file, and the pipeline stages can be
-tested without Postgres running.
+**The one rule worth stating explicitly:** no module outside `db/` writes SQL.
+A reviewer can audit the entire data-access surface by reading one file. The
+runner is the exception that proves it — `run.py` holds the connection and owns
+the transaction boundary, which is exactly why the stages it calls do not: none
+of the five transforming stages imports the database, and all of them are tested
+without Postgres running.
 
 ---
 
@@ -290,7 +295,7 @@ make smoke          # quick run, 10 images per class
 make status         # recent runs + current dataset composition
 make psql           # psql shell against the pipeline database
 make verify-schema  # 12 assertions against the live schema, then rolls back
-make test           # 172 tests in Docker — no local Python needed
+make test           # 187 tests in Docker — no local Python needed
 make clean          # drop the volume and all outputs — start from nothing
 ```
 
@@ -322,7 +327,7 @@ data/output/
 
 **What is in the repository and what is not.** The parquet, the CSV, the
 manifest and the attributions are committed — they are the deliverable, and they
-describe all 180 images. The 180 image *files* are not: at ~180 MB they would
+describe all 180 images. The 180 image *files* are not: at ~94 MB they would
 make the clone hostile, and `make up` regenerates them exactly (same bytes, same
 paths — that is what content-addressed storage means). So that the data can
 still be eyeballed without running anything, `data/output/sample_images/` holds
@@ -367,7 +372,7 @@ tests/
 ├── test_dedupe.py                 pHash robustness + false-positive guard
 ├── test_normalize_and_split.py    licence mapping, the NC/ND gate, stratification, leakage
 ├── test_select.py                 class targets, determinism, orphan markings
-├── test_download.py               the four rejections this stage owns
+├── test_download.py               the six rejections this stage owns
 ├── test_export.py                 tree/manifest agreement, split-change pruning
 ├── test_http_client.py            robots.txt, per-host throttling, retries and 429
 ├── test_sources.py                adapter parsing against canned payloads
@@ -375,13 +380,13 @@ tests/
 ```
 
 ```bash
-make test        # 172 tests in Docker — needs no local Python at all
+make test        # 187 tests in Docker — needs no local Python at all
 ```
 
 The suite runs in its own build stage against the compose Postgres, so nothing
 is skipped and nothing has to be installed first. A test suite that requires the
 reviewer to have Python 3.12 and the right wheels is a test suite the reviewer
-does not run, and "172 tests pass" then rests on my word instead of on one
+does not run, and "187 tests pass" then rests on my word instead of on one
 command.
 
 It also runs on every push — [`.github/workflows/ci.yml`](.github/workflows/ci.yml),
@@ -402,7 +407,7 @@ adapters are substituted, and only to change where the URLs point.
 12 assertions covering idempotency, every CHECK constraint, cascade behaviour
 and the views, ending in `ROLLBACK` so it leaves no trace.
 
-**Twenty-two defects were found**, nine by testing and by running against the
+**Twenty-five defects were found**, nine by testing and by running against the
 real sources, thirteen by reading — my own documentation against my own code,
 and adversarial reviews looking for claims the code did not support. Which method
 found which is the interesting part, and it is the part a green test suite cannot
@@ -465,4 +470,4 @@ the measurement that establishes it, in
 |---|---|
 | [DECISIONS.md](DECISIONS.md) | every design choice and the alternative it beat; the licence policy in full; reproducibility's boundary; what I would do with more time |
 | [RESULTS.md](RESULTS.md) | the delivered run, measured: sources, licences, rejections, attribution, one honest miss |
-| [DEFECTS.md](DEFECTS.md) | twenty-two defects, each with its cause and the method that found it |
+| [DEFECTS.md](DEFECTS.md) | twenty-five defects, each with its cause and the method that found it |

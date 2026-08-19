@@ -164,3 +164,64 @@ def test_an_unchanged_dataset_prunes_nothing(store, tmp_path):
 
     assert summary["images_pruned"] == 0
     assert summary["images_copied"] == 2
+
+
+# =============================================================================
+#  The image store is a cache, and clearing it must not delete the dataset
+#
+#  `data/images` is documented as deletable, and ingestion skips any class
+#  already at its target — so "clear the cache, keep the database, re-run" is a
+#  path a user is invited to take. It used to end with an empty `images/` tree
+#  and a manifest still describing every row, because a row whose source file
+#  had gone was never added to the set of files the pruner is told to keep.
+# =============================================================================
+
+
+def test_a_cleared_image_store_does_not_prune_the_already_exported_tree(store, tmp_path):
+    out = tmp_path / "out"
+    rows = [_row(s, "train", store) for s in ("a" * 64, "b" * 64)]
+    _export(rows, out)
+    exported = sorted(p.name for p in (out / "images").rglob("*.jpg"))
+    assert len(exported) == 2
+
+    for f in store.glob("*.jpg"):          # the cache is wiped, the DB is not
+        f.unlink()
+
+    summary = _export(rows, out)
+
+    still_there = sorted(p.name for p in (out / "images").rglob("*.jpg"))
+    assert still_there == exported, "clearing the cache destroyed the exported dataset"
+    assert summary["images_pruned"] == 0
+    assert summary["images_missing"] == 0, (
+        "a row whose file is already exported is not missing"
+    )
+
+
+def test_a_row_with_no_bytes_on_either_side_is_reported_missing(store, tmp_path):
+    out = tmp_path / "out"
+    (store / f"{'a' * 64}.jpg").unlink()
+
+    summary = _export([_row("a" * 64, "train", store)], out)
+
+    assert summary["images_missing"] == 1
+    assert summary["records"] == 1, "the row is still in the manifest"
+
+
+def test_the_manifest_never_describes_more_files_than_the_tree_holds(store, tmp_path):
+    """
+    The invariant the whole stage exists for. Whatever the store does, a
+    manifest entry and a file on disk must come in pairs.
+    """
+    out = tmp_path / "out"
+    rows = [_row(s, "train", store) for s in ("a" * 64, "b" * 64, "c" * 64)]
+    _export(rows, out)
+    for f in store.glob("*.jpg"):
+        f.unlink()
+    summary = _export(rows, out)
+
+    manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    on_disk = {p.name for p in (out / "images").rglob("*.jpg")}
+    claimed = {Path(entry["path"]).name for entry in manifest["images"]}
+
+    assert claimed <= on_disk | set(), f"manifest claims files that are not there: {claimed - on_disk}"
+    assert summary["images_pruned"] == 0
