@@ -41,6 +41,10 @@ log = get_logger(__name__)
 #: Licence templates on Commons render their short name in a span with this
 #: class. Most-specific selector first; the later ones are progressively
 #: coarser nets for pages using older or unusual templates.
+#: Restriction markers, used only to rank two licence boxes against each other.
+_NC_ND_RE = re.compile(r"non[-\s]*commercial|no[-\s]*deriv|\bnc\b|\bnd\b", re.I)
+_SA_RE = re.compile(r"share[-\s]*alike|\bsa\b", re.I)
+
 _LICENCE_SELECTORS = (
     "span.licensetpl_short",
     ".licensetpl_short",
@@ -488,81 +492,141 @@ class WikimediaCommonsSource(ImageSource):
         twice costs nothing.
         """
         WikimediaCommonsSource.strip_chrome(soup)
-        for selector in _LICENCE_SCOPES:
-            node = soup.select_one(selector)
-            if node is not None:
-                return node
-        return None
+        nodes = WikimediaCommonsSource._licence_scopes(soup)
+        return nodes[0] if nodes else None
 
     @staticmethod
-    def _extract_licence(soup: BeautifulSoup) -> str | None:
+    def _licence_scopes(soup: BeautifulSoup) -> list:
         """
-        Establish the licence, trying the most trustworthy signal first.
+        Every container that plausibly holds this file's licensing, not just
+        the first.
 
-        Order matters and is deliberate:
-          1. the deed URL — machine-generated, language-independent, stable
-          2. the `licensetpl_short` span — the template's own machine-readable
-             short name, present on most but not all file pages
-          3. public-domain prose — a genuine last resort, and scoped tightly
+        `select_one` was the bug. Commons file pages routinely carry more than
+        one licence box — a public-domain tag for the depicted work beside the
+        photographer's own licence, or a GFDL/CC dual grant — and reading only
+        the first meant a page whose second box said `CC BY-NC-ND 4.0` was
+        recorded as `Public domain`. That normalises to `PDM-1.0`, which
+        carries no CC elements, so the NC/ND gate had nothing to intersect and
+        an explicitly NonCommercial, NoDerivatives image entered a dataset
+        described as usable for commercial training. The gate was working; its
+        input was truncated.
 
-        Ordering the URL first is a change from the original implementation.
-        Reading the rendered text first meant a page whose template rendered in
-        German, or with an unusual short name, was rejected as unlicensed even
-        though its deed link said exactly what the licence was.
-
-        Every step is confined to the file's own licensing area. A page whose
-        licence we cannot find there is rejected as unlicensed — which is the
-        correct answer, and the one the footer used to prevent us from giving.
+        All matches for the first selector that matches anything are returned,
+        so the scopes are siblings of one kind rather than a mixture of a
+        precise container and a broad fallback.
         """
-        scope = WikimediaCommonsSource._licence_scope(soup)
-        if scope is None:
-            return None
+        WikimediaCommonsSource.strip_chrome(soup)
+        for selector in _LICENCE_SCOPES:
+            nodes = soup.select(selector)
+            if nodes:
+                return list(nodes)
+        return []
 
+    @staticmethod
+    def _restrictiveness(raw: str) -> int:
+        """
+        Rank licence strings so the most restrictive box wins a disagreement.
+
+        Deliberately local and textual: this is a scraping-layer tie-break, not
+        a second licence parser. `normalise_license` remains the single place
+        that turns text into an SPDX identifier, and this only decides which
+        text it is handed. Erring towards the restrictive reading is the safe
+        direction — over-reporting a restriction costs one image, under-
+        reporting one ships an unusable image as usable.
+        """
+        text = raw.lower()
+        if _NC_ND_RE.search(text):
+            return 3
+        if _SA_RE.search(text):
+            return 2
+        if "by" in text or "attribution" in text:
+            return 1
+        return 0
+
+    @staticmethod
+    def _licence_from_scope(scope) -> tuple[str | None, str | None]:
+        """
+        The licence and its deed URL from one licensing box, read together.
+
+        Reading them apart is what let `license` and `license_url` disagree:
+        the licence reader skipped a CC anchor whose href yielded no code,
+        while the URL reader took the first CC anchor unconditionally. One pass
+        over one box means the pair either agrees or is empty.
+
+        Precedence within the box is unchanged and deliberate:
+          1. the deed URL - machine-generated, language-independent, stable
+          2. the `licensetpl_short` span - the template's own short name
+          3. public-domain prose - a last resort, and scoped tightly
+        """
         for anchor in scope.select('a[href*="creativecommons.org"]'):
-            derived = WikimediaCommonsSource._licence_from_cc_url(anchor.get("href", ""))
+            href = anchor.get("href", "")
+            derived = WikimediaCommonsSource._licence_from_cc_url(href)
             if derived:
-                return derived
+                return derived, WikimediaCommonsSource._absolutise(href)
 
         for selector in _LICENCE_SELECTORS:
             node = scope.select_one(selector)
             if node and node.get_text(strip=True):
-                return node.get_text(strip=True)
+                link = scope.select_one('a[href*="creativecommons.org"]')
+                url = WikimediaCommonsSource._absolutise(link["href"]) if link else None
+                return node.get_text(strip=True), url
 
-        # Public-domain prose. Scoped to the licensing containers only, never
-        # the whole page: the words "public domain" appear in unrelated
-        # navigation and boilerplate and would produce false positives.
-        for selector in (
-            "#mw-content-text .licensetpl",
-            "table.layouttemplate",
-            ".licensetpl",
-            "#mw-imagepage-content .license",
-        ):
-            section = soup.select_one(selector)
-            if section is None:
+        # Public-domain prose, confined to this box: the words "public domain"
+        # appear in unrelated navigation and would produce false positives.
+        haystack = scope.get_text(" ", strip=True)
+        for pattern in _PD_PATTERNS:
+            if pattern.search(haystack):
+                link = scope.select_one('a[href*="creativecommons.org"]')
+                url = WikimediaCommonsSource._absolutise(link["href"]) if link else None
+                return "Public domain", url
+        return None, None
+
+    @staticmethod
+    def _licence_and_url(soup: BeautifulSoup) -> tuple[str | None, str | None]:
+        """
+        Read every licensing box on the page; the most restrictive one wins.
+
+        A file page can carry a public-domain tag for the depicted work beside
+        the photographer's own `CC BY-NC-ND` grant. Taking the first box read
+        that page as public domain and handed the NC/ND gate an identifier with
+        no elements to refuse. Taking the most restrictive box is the reading
+        that cannot ship an unusable image as usable, and where the boxes agree
+        it changes nothing.
+        """
+        best: tuple[int, str, str | None] | None = None
+        for scope in WikimediaCommonsSource._licence_scopes(soup):
+            licence, url = WikimediaCommonsSource._licence_from_scope(scope)
+            if not licence:
                 continue
-            haystack = section.get_text(" ", strip=True)
-            for pattern in _PD_PATTERNS:
-                if pattern.search(haystack):
-                    return "Public domain"
-        return None
+            rank = WikimediaCommonsSource._restrictiveness(licence)
+            if best is None or rank > best[0]:
+                best = (rank, licence, url)
+        if best is None:
+            return None, None
+        return best[1], best[2]
+
+    @staticmethod
+    def _extract_licence(soup: BeautifulSoup) -> str | None:
+        """
+        Establish the licence. A page whose licence we cannot find in its own
+        licensing area is rejected as unlicensed - the correct answer, and the
+        one the site footer used to prevent us from giving.
+        """
+        return WikimediaCommonsSource._licence_and_url(soup)[0]
 
     @staticmethod
     def _extract_licence_url(soup: BeautifulSoup) -> str | None:
         """
-        The deed URL for *this file*, in document order within its own scope.
+        The deed URL for *this file*, taken from the same box the licence came
+        from so the two can never contradict each other.
 
-        The previous version preferred `/licenses` over `/publicdomain` across
-        the whole page. On a CC0 file that is precisely backwards: the file's
-        own deed is `/publicdomain/zero/1.0/`, the only `/licenses` link is the
-        site footer's, and the preference reached past the right answer to pick
-        the wrong one. Four rows of the delivered dataset say `CC0-1.0` beside a
-        `by-sa/4.0` URL for exactly that reason.
+        The original preferred `/licenses` over `/publicdomain` across the whole
+        page. On a CC0 file that is backwards: the file's own deed is
+        `/publicdomain/zero/1.0/`, the only `/licenses` link is the footer's,
+        and the preference reached past the right answer. Four rows of an
+        earlier export said `CC0-1.0` beside a `by-sa/4.0` URL for that reason.
         """
-        scope = WikimediaCommonsSource._licence_scope(soup)
-        if scope is None:
-            return None
-        link = scope.select_one('a[href*="creativecommons.org"]')
-        return WikimediaCommonsSource._absolutise(link["href"]) if link else None
+        return WikimediaCommonsSource._licence_and_url(soup)[1]
 
     @staticmethod
     def _extract_author(soup: BeautifulSoup) -> str | None:

@@ -2,7 +2,7 @@
 #  CI — the same two commands a reviewer would run, run on every push.
 #
 #  The point is not the green tick. It is that the claims in the README
-#  ("172 tests pass", "docker compose up builds") are checked by something
+#  ("187 tests pass", "docker compose up builds") are checked by something
 #  other than my word, on a machine that is not mine.
 # =============================================================================
 

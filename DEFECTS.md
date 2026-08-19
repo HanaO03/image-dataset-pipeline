@@ -3,11 +3,15 @@
 Every defect found in this project, what caused it, and which method found it.
 
 This list is here because *which method found which* is the interesting part,
-and it is the part a green test suite cannot tell you. Nine of these came from
-testing and from running against the real sources. The rest came from reading —
-my own documentation against my own code, and then adversarial reviews that went
-looking specifically for claims the code did not support. The first nine were
-invisible to reading; the last thirteen were invisible to a green test suite.
+and it is the part a green test suite cannot tell you. Nine came from testing
+and from running against the real sources. Thirteen came from reading — my own
+documentation against my own code, and adversarial reviews that went looking
+specifically for claims the code did not support. The last three came from
+somebody else installing the project from scratch on a machine that was not
+mine, which turned out to be the only method that could find any of them: the
+first nine were invisible to reading, the middle thirteen were invisible to a
+green test suite, and the final three were invisible to both, because every one
+of them lives on a path neither the tests nor CI has ever walked.
 
 The five worth reading if you only read five: **4** (robots.txt), **13**
 (train/val leakage reintroduced at export), **8** (the rate limiter that
@@ -212,3 +216,46 @@ sixteen runs).
    draws and against its documented band. This is the only defect on the list
    that was never a bug in the pipeline — the code was always right, and the
    test was wrong about it.
+
+23. **The CLI's help screen crashed on every fresh install.** `requirements.txt`
+   pinned `typer==0.15.1` and left `click` and `rich` — its own dependencies —
+   to pip, which resolved click 8.4 and rich 15. click 8.2 changed
+   `Parameter.make_metavar()` to require a `ctx` argument, so `python -m src.cli
+   --help` died with a `TypeError` inside typer's help renderer. `run` still
+   worked, which is why `docker compose up` never noticed, and the crash shipped
+   inside the built image. The README claims "pinned dependencies" as a
+   reproducibility guarantee two sections above; the drift it says is covered is
+   the drift that broke the program. Nothing in the suite or in CI ever asked
+   typer to *draw* anything, so no test could have caught it — `tests/test_cli.py`
+   now renders every help screen, and asserts click stays below 8.2. Found by a
+   reviewer typing the first command anyone types after `docker compose up`.
+24. **Clearing the image cache deleted the exported dataset, and the manifest
+   went on describing it.** `_copy_images` added a destination to the `expected`
+   set only when the source file was still in the store; `_prune_stale_images`
+   then deleted everything not in `expected`. So with the store cleared,
+   `expected` was empty and the entire `images/` tree was removed — while the
+   manifest, the CSV and the parquet, all generated from the database, still
+   listed 180 images, and the run reported `SUCCESS`. This is not a hypothetical
+   path: `download.py` documents `data/images` as a deletable cache and
+   ingestion skips any class already at target, so "clear the cache, keep the
+   database, re-run" is a sequence the documentation invites. It is defect 13
+   inverted — that one left files the manifest did not claim, this one claimed
+   files it had just deleted — and the same stage produced both. A row the
+   dataset claims is now registered before its bytes are looked for, and an
+   export that cannot materialise every row marks the run `partial` instead of
+   `success`.
+25. **Only the first licence box on a Commons file page was read.**
+   `_licence_scope` used `select_one`. Commons pages routinely carry two: a
+   public-domain tag for the depicted work beside the photographer's own grant,
+   or a GFDL/CC dual licence. A page whose second box said `CC BY-NC-ND 4.0` was
+   recorded as `Public domain`, which normalises to `PDM-1.0` — an identifier
+   carrying no CC elements, so `license_permits` had nothing to intersect and an
+   explicitly NonCommercial, NoDerivatives image entered a dataset whose central
+   claim is that every image permits commercial training. The gate was working
+   correctly; its input was truncated before it ever ran. The fourth defect in
+   this log to live in the licence layer, and the second — after 21 — where a
+   public-domain reading smuggled a restriction past a gate that was itself
+   sound. Every box is now read and the most restrictive wins; the deed URL is
+   taken from the same box as the licence, which also closes the gap where the
+   two could contradict each other. Found by a reviewer constructing the
+   two-box page the fixtures never had.

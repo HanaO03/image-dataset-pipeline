@@ -392,11 +392,24 @@ class PipelineRunner:
             for cls in self.settings.sources.classes
             if counts.get(cls, 0) < minimum
         }
+        degraded = False
         if short:
             log.warning("quality gate: classes below minimum",
                         extra={"minimum": minimum, "short": short})
-            return RunStatus.PARTIAL
-        return RunStatus.SUCCESS
+            degraded = True
+
+        # An export that could not materialise every row leaves the manifest
+        # describing files that are not on disk. Every database row is still
+        # correct, so this is not a failure — but a consumer that trusts the
+        # manifest and walks the tree finds less than it was promised, and a
+        # run that reports SUCCESS is the thing that hides it.
+        missing_images = int(report.export_summary.get("images_missing", 0) or 0)
+        if missing_images:
+            log.warning("quality gate: dataset rows exported without image files",
+                        extra={"images_missing": missing_images})
+            degraded = True
+
+        return RunStatus.PARTIAL if degraded else RunStatus.SUCCESS
 
     def _rejection_breakdown(self) -> dict[str, int]:
         assert self.run_id
