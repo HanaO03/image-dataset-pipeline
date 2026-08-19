@@ -1,7 +1,13 @@
 # =============================================================================
 #  `docker compose up` runs the whole thing: a clean database, the pipeline
-#  end to end, results in ./data/output. Then the pipeline container exits 0
-#  and Postgres stays up so the results can be queried.
+#  end to end, results in ./data/output. Then the pipeline container exits 0.
+#
+#  Whether Postgres stays up afterwards depends on how you started it. A plain
+#  `docker compose up` leaves it running, which is how the results can be
+#  queried. `make up` adds --abort-on-container-exit so the command returns with
+#  the pipeline's exit code, and that stops every service including this one --
+#  so `make psql` and `make verify-schema` bring Postgres back up first rather
+#  than failing against a container that is no longer there.
 # =============================================================================
 
 services:

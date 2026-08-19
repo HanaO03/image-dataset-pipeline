@@ -6,11 +6,11 @@ This list is here because *which method found which* is the interesting part,
 and it is the part a green test suite cannot tell you. Nine came from testing
 and from running against the real sources. Thirteen came from reading — my own
 documentation against my own code, and adversarial reviews that went looking
-specifically for claims the code did not support. The last three came from
+specifically for claims the code did not support. The last five came from
 somebody else installing the project from scratch on a machine that was not
 mine, which turned out to be the only method that could find any of them: the
 first nine were invisible to reading, the middle thirteen were invisible to a
-green test suite, and the final three were invisible to both, because every one
+green test suite, and the final five were invisible to both, because every one
 of them lives on a path neither the tests nor CI has ever walked.
 
 The five worth reading if you only read five: **4** (robots.txt), **13**
@@ -259,3 +259,28 @@ sixteen runs).
    taken from the same box as the licence, which also closes the gap where the
    two could contradict each other. Found by a reviewer constructing the
    two-box page the fixtures never had.
+
+26. **Two documented commands failed on the documented path.** `make psql` and
+   `make verify-schema` both `docker compose exec` into Postgres — and `make up`
+   passes `--abort-on-container-exit`, which stops *every* service when the
+   pipeline container exits, Postgres included. So the sequence the README
+   prints, `make up` then `make verify-schema`, could not work, and the twelve
+   schema assertions the README advertises as a headline were unreachable by the
+   route it gives for reaching them. The header of `docker-compose.yml` said
+   "Postgres stays up so the results can be queried", which is true of a plain
+   `docker compose up` and false of `make up` — the path the quickstart
+   recommends. Both targets now bring Postgres up and wait for it to be healthy
+   before connecting, and the comment says which command leaves it running and
+   which does not. The same family as 23: a command a reviewer types early,
+   failing in a way no test exercises, next to a sentence claiming otherwise.
+27. **The attribution cap was measured, and the result was written about
+   something else.** `RESULTS.md` offered `max(len) == 198` on the scraped rows
+   as evidence that the credit-line defects were behind us. The measurement is
+   real and the cap is enforced — but length is a bound on the damage, not a
+   definition of the field, and one of the 26 scraped rows still reads as a
+   `{{Creator}}` biography rather than a name: trimmed to 198 characters and
+   stripped of its VIAF and ISNI identifiers, and still a catalogue entry where
+   a credit belongs. This is defect 18 committed a second time in the same
+   section that describes defect 18 — a number that is accurate, quoted in
+   support of a claim it does not establish. The text now states what the
+   number proves and what it leaves open, and names the row.

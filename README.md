@@ -407,7 +407,7 @@ adapters are substituted, and only to change where the URLs point.
 12 assertions covering idempotency, every CHECK constraint, cascade behaviour
 and the views, ending in `ROLLBACK` so it leaves no trace.
 
-**Twenty-five defects were found**, nine by testing and by running against the
+**Twenty-seven defects were found**, nine by testing and by running against the
 real sources, thirteen by reading — my own documentation against my own code,
 and adversarial reviews looking for claims the code did not support. Which method
 found which is the interesting part, and it is the part a green test suite cannot
@@ -470,4 +470,4 @@ the measurement that establishes it, in
 |---|---|
 | [DECISIONS.md](DECISIONS.md) | every design choice and the alternative it beat; the licence policy in full; reproducibility's boundary; what I would do with more time |
 | [RESULTS.md](RESULTS.md) | the delivered run, measured: sources, licences, rejections, attribution, one honest miss |
-| [DEFECTS.md](DEFECTS.md) | twenty-five defects, each with its cause and the method that found it |
+| [DEFECTS.md](DEFECTS.md) | twenty-seven defects, each with its cause and the method that found it |
